@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'auth_service.dart';
 import 'forgotpass.dart';
 import 'signin.dart';
+import 'terms.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({
@@ -27,6 +28,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _agreedToTerms = false;
   String? _errorMessage;
 
   @override
@@ -42,6 +44,11 @@ class _LoginPageState extends State<LoginPage> {
 
     if (identifier.isEmpty || password.isEmpty) {
       setState(() => _errorMessage = 'Enter your email or username and password.');
+      return;
+    }
+
+    if (!_agreedToTerms) {
+      setState(() => _errorMessage = 'You must agree to the Terms & Conditions to log in.');
       return;
     }
 
@@ -80,6 +87,19 @@ class _LoginPageState extends State<LoginPage> {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const SignInPage()),
     );
+  }
+
+  Future<void> _openTerms() async {
+    final agreed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => TermsAndConditionsPage(
+          onAgree: () => setState(() => _agreedToTerms = true),
+        ),
+      ),
+    );
+    if (agreed == true) {
+      setState(() => _agreedToTerms = true);
+    }
   }
 
   @override
@@ -182,7 +202,10 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 5),
-                          const _TermsDivider(),
+                          _TermsCheckbox(
+                            agreed: _agreedToTerms,
+                            onTap: _openTerms,
+                          ),
                           const SizedBox(height: 25),
                           const Text(
                             "DON'T HAVE AN ACCOUNT?",
@@ -512,28 +535,62 @@ class _LoginButton extends StatelessWidget {
   }
 }
 
-class _TermsDivider extends StatelessWidget {
-  const _TermsDivider();
+class _TermsCheckbox extends StatelessWidget {
+  const _TermsCheckbox({
+    required this.agreed,
+    required this.onTap,
+  });
+
+  final bool agreed;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
-      children: [
-        Expanded(child: Divider(color: Color(0xFF2B2D31), height: 1)),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          const Expanded(child: Divider(color: Color(0xFF2B2D31), height: 1)),
+          const SizedBox(width: 12),
+          // Non-interactive checkbox (display only)
+          IgnorePointer(
+            child: Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: agreed ? const Color(0xFF7CE1EF) : Colors.transparent,
+                border: Border.all(
+                  color: agreed ? const Color(0xFF7CE1EF) : const Color(0xFF76787F),
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: agreed
+                  ? const Icon(
+                      Icons.check,
+                      size: 14,
+                      color: Color(0xFF061014),
+                    )
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Text(
             'TERMS & CONDITION',
             style: TextStyle(
               color: Color(0xFF76787F),
               fontSize: 9,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.1,
+              decoration: TextDecoration.underline,
+              decorationColor: Color(0xFF76787F),
             ),
           ),
-        ),
-        Expanded(child: Divider(color: Color(0xFF2B2D31), height: 1)),
-      ],
+          const SizedBox(width: 12),
+          const Expanded(child: Divider(color: Color(0xFF2B2D31), height: 1)),
+        ],
+      ),
     );
   }
 }

@@ -1,0 +1,38 @@
+from decouple import config
+from django.http import HttpResponse
+
+
+def _csv(value):
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+class LocalDevelopmentCorsMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.allowed_origins = set(config("CORS_ALLOWED_ORIGINS", default="", cast=_csv))
+        self.allow_localhost = config("DJANGO_DEBUG", default=True, cast=bool)
+
+    def __call__(self, request):
+        if request.method == "OPTIONS":
+            response = HttpResponse(status=204)
+        else:
+            response = self.get_response(request)
+
+        origin = request.headers.get("Origin")
+        if self._is_allowed_origin(origin):
+            response["Access-Control-Allow-Origin"] = origin
+            response["Vary"] = "Origin"
+            response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+            response["Access-Control-Allow-Headers"] = "Content-Type"
+
+        return response
+
+    def _is_allowed_origin(self, origin):
+        if not origin:
+            return False
+        if origin in self.allowed_origins:
+            return True
+        return self.allow_localhost and (
+            origin.startswith("http://localhost:")
+            or origin.startswith("http://127.0.0.1:")
+        )

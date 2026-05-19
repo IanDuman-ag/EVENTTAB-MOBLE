@@ -7,6 +7,14 @@ def _csv(value):
 
 
 class LocalDevelopmentCorsMiddleware:
+    """
+    Lightweight CORS middleware for local development.
+    In production, replace this with django-cors-headers.
+    """
+
+    _ALLOWED_METHODS = "GET, POST, OPTIONS"
+    _ALLOWED_HEADERS = "Content-Type, Authorization"
+
     def __init__(self, get_response):
         self.get_response = get_response
         self.allowed_origins = set(config("CORS_ALLOWED_ORIGINS", default="", cast=_csv))
@@ -22,8 +30,8 @@ class LocalDevelopmentCorsMiddleware:
         if self._is_allowed_origin(origin):
             response["Access-Control-Allow-Origin"] = origin
             response["Vary"] = "Origin"
-            response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-            response["Access-Control-Allow-Headers"] = "Content-Type"
+            response["Access-Control-Allow-Methods"] = self._ALLOWED_METHODS
+            response["Access-Control-Allow-Headers"] = self._ALLOWED_HEADERS
 
         return response
 

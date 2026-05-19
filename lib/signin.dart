@@ -1,32 +1,6 @@
 import 'package:flutter/material.dart';
 
-class AuthCredentialsStore {
-  AuthCredentialsStore._();
-
-  static final Map<String, String> _credentials = <String, String>{};
-
-  static bool get hasCredentials => _credentials.isNotEmpty;
-
-  static bool exists(String identifier) {
-    return _credentials.containsKey(_normalize(identifier));
-  }
-
-  static void create({required String identifier, required String password}) {
-    _credentials[_normalize(identifier)] = password;
-  }
-
-  static bool validate({required String identifier, required String password}) {
-    return _credentials[_normalize(identifier)] == password;
-  }
-
-  static void clear() {
-    _credentials.clear();
-  }
-
-  static String _normalize(String value) {
-    return value.trim().toLowerCase();
-  }
-}
+import 'auth_service.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key, this.onAccountCreated});
@@ -38,57 +12,66 @@ class SignInPage extends StatefulWidget {
 }
 
 class _SignInPageState extends State<SignInPage> {
-  final TextEditingController _identifierController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
   String? _errorMessage;
 
   @override
   void dispose() {
-    _identifierController.dispose();
+    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  void _createAccount() {
-    final identifier = _identifierController.text.trim();
+  Future<void> _createAccount() async {
+    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    if (identifier.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
-      setState(() {
-        _errorMessage = 'Enter an email or username and password.';
-      });
+    if (username.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      setState(() => _errorMessage = 'Fill in all fields.');
       return;
     }
 
     if (password != confirmPassword) {
-      setState(() {
-        _errorMessage = 'Passwords do not match.';
-      });
+      setState(() => _errorMessage = 'Passwords do not match.');
       return;
     }
 
-    if (AuthCredentialsStore.exists(identifier)) {
-      setState(() {
-        _errorMessage = 'This email or username already exists.';
-      });
-      return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await authService.register(
+        username: username,
+        email: email,
+        password: password,
+        confirmPassword: confirmPassword,
+      );
+      widget.onAccountCreated?.call();
+      if (mounted) Navigator.of(context).pop();
+    } on AuthException catch (e) {
+      setState(() => _errorMessage = e.message);
+    } catch (_) {
+      setState(() => _errorMessage = 'Could not reach the server. Try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    AuthCredentialsStore.create(identifier: identifier, password: password);
-    widget.onAccountCreated?.call();
-
-    if (!mounted) {
-      return;
-    }
-
-    Navigator.of(context).pop();
   }
 
   @override
@@ -128,7 +111,7 @@ class _SignInPageState extends State<SignInPage> {
                           ),
                           const SizedBox(height: 9),
                           const Text(
-                            'CREATE YOUR LOGIN CREDENTIALS',
+                            'CREATE YOUR ACCOUNT',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Color(0xFF74777B),
@@ -138,12 +121,20 @@ class _SignInPageState extends State<SignInPage> {
                             ),
                           ),
                           const SizedBox(height: 42),
-                          const _FormLabel('EMAIL OR USERNAME'),
+                          const _FormLabel('USERNAME'),
                           const SizedBox(height: 8),
                           _CredentialTextField(
-                            controller: _identifierController,
-                            hintText: 'EMAIL OR USERNAME',
+                            controller: _usernameController,
+                            hintText: 'USERNAME',
                             suffixIcon: Icons.person_outline,
+                          ),
+                          const SizedBox(height: 24),
+                          const _FormLabel('EMAIL'),
+                          const SizedBox(height: 8),
+                          _CredentialTextField(
+                            controller: _emailController,
+                            hintText: 'EMAIL ADDRESS',
+                            suffixIcon: Icons.email_outlined,
                             keyboardType: TextInputType.emailAddress,
                           ),
                           const SizedBox(height: 24),
@@ -203,19 +194,31 @@ class _SignInPageState extends State<SignInPage> {
                                 ),
                               ),
                               child: TextButton(
-                                onPressed: _createAccount,
+                                onPressed: _isLoading ? null : _createAccount,
                                 style: TextButton.styleFrom(
                                   foregroundColor: const Color(0xFF061014),
+                                  disabledForegroundColor:
+                                      const Color(0xFF061014)
+                                          .withValues(alpha: 0.5),
                                   shape: const RoundedRectangleBorder(),
                                 ),
-                                child: const Text(
-                                  'CREATE ACCOUNT',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 2.8,
-                                  ),
-                                ),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: Color(0xFF061014),
+                                        ),
+                                      )
+                                    : const Text(
+                                        'CREATE ACCOUNT',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 2.8,
+                                        ),
+                                      ),
                               ),
                             ),
                           ),
@@ -232,6 +235,10 @@ class _SignInPageState extends State<SignInPage> {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Sub-widgets
+// ---------------------------------------------------------------------------
 
 class _FormLabel extends StatelessWidget {
   const _FormLabel(this.text);

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'login.dart';
-import 'signin.dart';
 
 typedef BackendStatusLoader = Future<BackendStatus> Function();
 
@@ -40,12 +39,6 @@ class MyApp extends StatelessWidget {
                 statusLoader: statusLoader ?? fetchBackendStatus,
               ),
             ),
-          );
-        },
-        onCreateAccount: () {
-          final navigator = NavigationService.navigatorKey.currentState;
-          navigator?.push(
-            MaterialPageRoute(builder: (context) => const SignInPage()),
           );
         },
       ),

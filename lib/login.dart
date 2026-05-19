@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'auth_service.dart';
+import 'forgotpass.dart';
 import 'signin.dart';
 
 class LoginPage extends StatefulWidget {
@@ -12,6 +14,8 @@ class LoginPage extends StatefulWidget {
 
   final VoidCallback? onLogin;
   final VoidCallback? onCreateAccount;
+
+  /// If null, tapping "Forgot Password?" pushes [ForgotPasswordPage] directly.
   final VoidCallback? onForgotPassword;
 
   @override
@@ -22,6 +26,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _accountController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
   String? _errorMessage;
 
   @override
@@ -31,38 +36,50 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     final identifier = _accountController.text.trim();
     final password = _passwordController.text;
 
     if (identifier.isEmpty || password.isEmpty) {
-      setState(() {
-        _errorMessage = 'Enter your email or username and password.';
-      });
-      return;
-    }
-
-    if (!AuthCredentialsStore.hasCredentials) {
-      setState(() {
-        _errorMessage = 'Create an account first.';
-      });
-      return;
-    }
-
-    if (!AuthCredentialsStore.validate(
-      identifier: identifier,
-      password: password,
-    )) {
-      setState(() {
-        _errorMessage = 'Invalid email/username or password.';
-      });
+      setState(() => _errorMessage = 'Enter your email or username and password.');
       return;
     }
 
     setState(() {
+      _isLoading = true;
       _errorMessage = null;
     });
-    widget.onLogin?.call();
+
+    try {
+      await authService.login(identifier: identifier, password: password);
+      widget.onLogin?.call();
+    } on AuthException catch (e) {
+      setState(() => _errorMessage = e.message);
+    } catch (_) {
+      setState(() => _errorMessage = 'Could not reach the server. Try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _handleForgotPassword() {
+    if (widget.onForgotPassword != null) {
+      widget.onForgotPassword!();
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
+    );
+  }
+
+  void _handleCreateAccount() {
+    if (widget.onCreateAccount != null) {
+      widget.onCreateAccount!();
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SignInPage()),
+    );
   }
 
   @override
@@ -122,7 +139,7 @@ class _LoginPageState extends State<LoginPage> {
                               const Expanded(child: _FieldLabel('PASSWORD')),
                               _SmallTextButton(
                                 label: 'FORGOT PASSWORD?',
-                                onPressed: widget.onForgotPassword,
+                                onPressed: _handleForgotPassword,
                               ),
                             ],
                           ),
@@ -152,13 +169,16 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ],
                           const SizedBox(height: 28),
-                          _LoginButton(onPressed: _handleLogin),
+                          _LoginButton(
+                            isLoading: _isLoading,
+                            onPressed: _handleLogin,
+                          ),
                           const SizedBox(height: 18),
                           Align(
                             alignment: Alignment.centerLeft,
                             child: _SmallTextButton(
                               label: 'FORGOT PASSWORD?',
-                              onPressed: widget.onForgotPassword,
+                              onPressed: _handleForgotPassword,
                             ),
                           ),
                           const SizedBox(height: 5),
@@ -175,9 +195,7 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          _CreateAccountButton(
-                            onPressed: widget.onCreateAccount,
-                          ),
+                          _CreateAccountButton(onPressed: _handleCreateAccount),
                         ],
                       ),
                     ),
@@ -191,6 +209,10 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Sub-widgets (unchanged visual design)
+// ---------------------------------------------------------------------------
 
 class _CreateAccountButton extends StatelessWidget {
   const _CreateAccountButton({required this.onPressed});
@@ -437,8 +459,9 @@ class _SmallTextButton extends StatelessWidget {
 }
 
 class _LoginButton extends StatelessWidget {
-  const _LoginButton({required this.onPressed});
+  const _LoginButton({required this.isLoading, required this.onPressed});
 
+  final bool isLoading;
   final VoidCallback? onPressed;
 
   @override
@@ -452,26 +475,37 @@ class _LoginButton extends StatelessWidget {
           ),
         ),
         child: TextButton(
-          onPressed: onPressed,
+          onPressed: isLoading ? null : onPressed,
           style: TextButton.styleFrom(
             foregroundColor: const Color(0xFF061014),
+            disabledForegroundColor:
+                const Color(0xFF061014).withValues(alpha: 0.5),
             shape: const RoundedRectangleBorder(),
           ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'LOG IN',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 4,
+          child: isLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Color(0xFF061014),
+                  ),
+                )
+              : const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'LOG IN',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 4,
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    Icon(Icons.arrow_forward, size: 22),
+                  ],
                 ),
-              ),
-              SizedBox(width: 10),
-              Icon(Icons.arrow_forward, size: 22),
-            ],
-          ),
         ),
       ),
     );

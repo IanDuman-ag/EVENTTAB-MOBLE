@@ -21,18 +21,25 @@ flutter run --dart-define=API_BASE_URL=http://192.168.1.x:8000
 
 | File | Purpose |
 |------|---------|
-| `lib/main.dart` | App entry, `BackendStatusPage` |
+| `lib/main.dart` | App entry, routing, `BackendStatusPage` |
+| `lib/config.dart` | App-wide configuration (API base URL, etc.) |
 | `lib/auth_service.dart` | HTTP auth layer, `AuthSession` |
 | `lib/login.dart` | Login screen |
 | `lib/signin.dart` | Create account screen |
 | `lib/forgotpass.dart` | Forgot / reset password screen |
+| `lib/home.dart` | Home screen (post-login) |
+| `lib/schedule.dart` | Schedule / calendar view |
+| `lib/bracket.dart` | Tournament bracket view |
+| `lib/rankings.dart` | Rankings / leaderboard view |
+| `lib/teams.dart` | Teams management view |
+| `lib/terms.dart` | Terms & conditions screen |
 
 ## Auth flow
 1. User opens app → `LoginPage`
 2. Login → `authService.login()` → token stored in `AuthSession`
 3. Create account → `authService.register()` → auto-logged in
 4. Forgot password → `ForgotPasswordPage` (2-step: request token → set new password)
-5. After login → `BackendStatusPage` (placeholder for the real home screen)
+5. After login → Home screen
 
 ## Learnings
 _(update this section as you discover Flutter-specific issues)_

@@ -8,6 +8,12 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+
+# 3-Layer Architecture (AGENTS.md)
+.tmp/
+credentials.json
+token.json
+
 .atom/
 .build/
 .buildlog/

@@ -15,10 +15,7 @@ class TermsAndConditionsPage extends StatelessWidget {
         elevation: 0,
         title: const Text(
           'Legal Terms',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         actions: const [
           Padding(
@@ -210,10 +207,7 @@ class TermsAndConditionsPage extends StatelessWidget {
             ),
           ),
         ],
-        if (children != null) ...[
-          const SizedBox(height: 16),
-          ...children,
-        ],
+        if (children != null) ...[const SizedBox(height: 16), ...children],
       ],
     );
   }
@@ -232,11 +226,7 @@ class TermsAndConditionsPage extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            color: const Color(0xFFFF7A18),
-            size: 24,
-          ),
+          Icon(icon, color: const Color(0xFFFF7A18), size: 24),
           const SizedBox(width: 16),
           Expanded(
             child: Column(

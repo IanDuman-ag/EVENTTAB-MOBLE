@@ -88,7 +88,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     try {
       await authService.forgotPassword(email: email);
       setState(() {
-        _successMessage = 'New code sent! Check your email. Expires in 2 minutes.';
+        _successMessage =
+            'New code sent! Check your email. Expires in 2 minutes.';
         _tokenController.clear(); // Clear old code
       });
     } on AuthException catch (e) {
@@ -283,8 +284,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           controller: _newPasswordController,
           hintText: 'NEW PASSWORD',
           obscureText: _obscureNew,
-          suffixIcon:
-              _obscureNew ? Icons.lock_outline : Icons.lock_open_outlined,
+          suffixIcon: _obscureNew
+              ? Icons.lock_outline
+              : Icons.lock_open_outlined,
           onSuffixPressed: () => setState(() => _obscureNew = !_obscureNew),
         ),
         const SizedBox(height: 24),
@@ -341,8 +343,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               onPressed: _isResending ? null : _resendCode,
               style: TextButton.styleFrom(
                 foregroundColor: const Color(0xFF7DEEFF),
-                disabledForegroundColor:
-                    const Color(0xFF7DEEFF).withValues(alpha: 0.5),
+                disabledForegroundColor: const Color(
+                  0xFF7DEEFF,
+                ).withValues(alpha: 0.5),
                 padding: EdgeInsets.zero,
               ),
               child: _isResending
@@ -476,7 +479,9 @@ class _ActionButton extends StatelessWidget {
           onPressed: isLoading ? null : onPressed,
           style: TextButton.styleFrom(
             foregroundColor: const Color(0xFF061014),
-            disabledForegroundColor: const Color(0xFF061014).withValues(alpha: 0.5),
+            disabledForegroundColor: const Color(
+              0xFF061014,
+            ).withValues(alpha: 0.5),
             shape: const RoundedRectangleBorder(),
           ),
           child: isLoading

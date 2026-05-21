@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import 'home.dart';
 import 'login.dart';
 
 typedef BackendStatusLoader = Future<BackendStatus> Function();
@@ -35,11 +36,7 @@ class MyApp extends StatelessWidget {
         onLogin: () {
           final navigator = NavigationService.navigatorKey.currentState;
           navigator?.push(
-            MaterialPageRoute(
-              builder: (context) => BackendStatusPage(
-                statusLoader: statusLoader ?? fetchBackendStatus,
-              ),
-            ),
+            MaterialPageRoute(builder: (context) => const HomePage()),
           );
         },
       ),

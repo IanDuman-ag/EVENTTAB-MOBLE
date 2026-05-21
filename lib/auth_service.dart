@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'main.dart' show defaultApiBaseUrl;
+import 'config.dart';
 
 // ---------------------------------------------------------------------------
 // Models
@@ -72,9 +72,9 @@ class AuthService {
   Uri _uri(String path) => Uri.parse('$defaultApiBaseUrl$path');
 
   Map<String, String> get _jsonHeaders => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
 
   /// Parses a DRF error response into a human-readable string.
   String _parseError(Map<String, dynamic> body) {
@@ -141,10 +141,7 @@ class AuthService {
         .post(
           _uri('/api/auth/login/'),
           headers: _jsonHeaders,
-          body: jsonEncode({
-            'identifier': identifier,
-            'password': password,
-          }),
+          body: jsonEncode({'identifier': identifier, 'password': password}),
         )
         .timeout(_timeout);
 
@@ -174,10 +171,7 @@ class AuthService {
       await _client
           .post(
             _uri('/api/auth/logout/'),
-            headers: {
-              ..._jsonHeaders,
-              'Authorization': 'Token $token',
-            },
+            headers: {..._jsonHeaders, 'Authorization': 'Token $token'},
           )
           .timeout(_timeout);
     } catch (_) {

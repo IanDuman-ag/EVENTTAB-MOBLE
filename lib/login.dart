@@ -43,12 +43,17 @@ class _LoginPageState extends State<LoginPage> {
     final password = _passwordController.text;
 
     if (identifier.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = 'Enter your email or username and password.');
+      setState(
+        () => _errorMessage = 'Enter your email or username and password.',
+      );
       return;
     }
 
     if (!_agreedToTerms) {
-      setState(() => _errorMessage = 'You must agree to the Terms & Conditions to log in.');
+      setState(
+        () => _errorMessage =
+            'You must agree to the Terms & Conditions to log in.',
+      );
       return;
     }
 
@@ -74,9 +79,9 @@ class _LoginPageState extends State<LoginPage> {
       widget.onForgotPassword!();
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ForgotPasswordPage()));
   }
 
   void _handleCreateAccount() {
@@ -84,9 +89,9 @@ class _LoginPageState extends State<LoginPage> {
       widget.onCreateAccount!();
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SignInPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SignInPage()));
   }
 
   Future<void> _openTerms() async {
@@ -501,8 +506,9 @@ class _LoginButton extends StatelessWidget {
           onPressed: isLoading ? null : onPressed,
           style: TextButton.styleFrom(
             foregroundColor: const Color(0xFF061014),
-            disabledForegroundColor:
-                const Color(0xFF061014).withValues(alpha: 0.5),
+            disabledForegroundColor: const Color(
+              0xFF061014,
+            ).withValues(alpha: 0.5),
             shape: const RoundedRectangleBorder(),
           ),
           child: isLoading
@@ -536,10 +542,7 @@ class _LoginButton extends StatelessWidget {
 }
 
 class _TermsCheckbox extends StatelessWidget {
-  const _TermsCheckbox({
-    required this.agreed,
-    required this.onTap,
-  });
+  const _TermsCheckbox({required this.agreed, required this.onTap});
 
   final bool agreed;
   final VoidCallback onTap;
@@ -561,17 +564,15 @@ class _TermsCheckbox extends StatelessWidget {
               decoration: BoxDecoration(
                 color: agreed ? const Color(0xFF7CE1EF) : Colors.transparent,
                 border: Border.all(
-                  color: agreed ? const Color(0xFF7CE1EF) : const Color(0xFF76787F),
+                  color: agreed
+                      ? const Color(0xFF7CE1EF)
+                      : const Color(0xFF76787F),
                   width: 2,
                 ),
                 borderRadius: BorderRadius.circular(3),
               ),
               child: agreed
-                  ? const Icon(
-                      Icons.check,
-                      size: 14,
-                      color: Color(0xFF061014),
-                    )
+                  ? const Icon(Icons.check, size: 14, color: Color(0xFF061014))
                   : null,
             ),
           ),

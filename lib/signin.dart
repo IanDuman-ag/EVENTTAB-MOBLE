@@ -197,9 +197,9 @@ class _SignInPageState extends State<SignInPage> {
                                 onPressed: _isLoading ? null : _createAccount,
                                 style: TextButton.styleFrom(
                                   foregroundColor: const Color(0xFF061014),
-                                  disabledForegroundColor:
-                                      const Color(0xFF061014)
-                                          .withValues(alpha: 0.5),
+                                  disabledForegroundColor: const Color(
+                                    0xFF061014,
+                                  ).withValues(alpha: 0.5),
                                   shape: const RoundedRectangleBorder(),
                                 ),
                                 child: _isLoading

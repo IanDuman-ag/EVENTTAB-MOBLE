@@ -4,8 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import 'home.dart';
-import 'login.dart';
+import 'interface.dart';
 
 typedef BackendStatusLoader = Future<BackendStatus> Function();
 
@@ -32,14 +31,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      home: LoginPage(
-        onLogin: () {
-          final navigator = NavigationService.navigatorKey.currentState;
-          navigator?.push(
-            MaterialPageRoute(builder: (context) => const HomePage()),
-          );
-        },
-      ),
+      home: const InterfacePage(),
       navigatorKey: NavigationService.navigatorKey,
     );
   }

@@ -126,6 +126,19 @@ class _LoginPageState extends State<LoginPage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          // Back button
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: IconButton(
+                              onPressed: () => Navigator.of(context).maybePop(),
+                              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                              color: const Color(0xFF00C5D9),
+                              tooltip: 'Back to role selection',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
                           const _EventtabLogo(),
                           const SizedBox(height: 52),
                           const Text(

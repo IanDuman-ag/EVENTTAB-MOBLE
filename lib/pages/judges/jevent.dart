@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'judge_auth_service.dart';
+import 'judge_nav.dart';
 import 'jevent_detail.dart';
 
 // ─── colour palette ──────────────────────────────────────────────────────────
@@ -569,13 +570,7 @@ class _JudgeBottomNav extends StatelessWidget {
                 label: 'Home',
                 active: current == 0,
                 onTap: () {
-                  if (current != 0) {
-                    // Pop back to the named /judge/home route without
-                    // importing jhome.dart (avoids circular dependency).
-                    Navigator.of(context).popUntil(
-                      (route) => route.settings.name == '/judge/home',
-                    );
-                  }
+                  if (current != 0) JudgeNav.toHome(context);
                 },
               ),
               _NavItem(
@@ -583,12 +578,7 @@ class _JudgeBottomNav extends StatelessWidget {
                 label: 'Events',
                 active: current == 1,
                 onTap: () {
-                  if (current != 1) {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const JEventPage()),
-                      (route) => false,
-                    );
-                  }
+                  if (current != 1) JudgeNav.toEvents(context);
                 },
               ),
               _NavItem(

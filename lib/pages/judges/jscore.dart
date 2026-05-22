@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'judge_auth_service.dart';
+import 'judge_nav.dart';
 import 'jevent.dart';
 
 const _kBg = Color(0xFF0B0B12);
@@ -512,15 +513,10 @@ class _JScoringPageState extends State<JScoringPage> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _navItem(context, Icons.home_rounded, 'Home', false, onTap: () {
-                Navigator.of(context).popUntil(
-                  (route) => route.settings.name == '/judge/home',
-                );
+                JudgeNav.toHome(context);
               }),
               _navItem(context, Icons.event_rounded, 'Events', false, onTap: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const JEventPage()),
-                  (route) => false,
-                );
+                JudgeNav.toEvents(context);
               }),
               _navItem(context, Icons.star_rounded, 'Scoring', true),
             ],

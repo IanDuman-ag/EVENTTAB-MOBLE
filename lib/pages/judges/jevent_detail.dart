@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'judge_auth_service.dart';
+import 'judge_nav.dart';
 import 'jscore.dart';
 import 'jevent.dart';
 
@@ -240,9 +241,7 @@ class _JEventDetailPageState extends State<JEventDetailPage> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _navItem(Icons.home_rounded, 'Home', false, onTap: () {
-                Navigator.of(context).popUntil(
-                  (route) => route.settings.name == '/judge/home',
-                );
+                JudgeNav.toHome(context);
               }),
               _navItem(Icons.event_rounded, 'Events', true),
               _navItem(Icons.star_rounded, 'Scoring', false),

@@ -16,27 +16,103 @@ class BracketPage extends StatefulWidget {
 class _BracketPageState extends State<BracketPage> {
   static const List<String> _categories = ['MEN', 'WOMEN', 'MIXED', 'OPEN'];
 
+  static const _BracketSportCardData _featuredSport = _BracketSportCardData(
+    name: 'BASKETBALL',
+    accentColor: Color(0xFF7CE1EF),
+    icon: Icons.sports_basketball,
+    scores: [
+      _BracketMatchData(teamA: 'BSIT', teamB: 'BFPT', scoreA: 118, scoreB: 112),
+      _BracketMatchData(
+        teamA: 'BTLED',
+        teamB: 'BSIT',
+        scoreA: 104,
+        scoreB: 121,
+      ),
+    ],
+    liveMatch: _BracketMatchData(
+      teamA: 'BTLED',
+      teamB: 'BFPT',
+      scoreA: 98,
+      scoreB: 96,
+      isLive: true,
+    ),
+  );
+
   static const List<_BracketSportCardData> _sports = [
     _BracketSportCardData(
       name: 'SOCCER',
       accentColor: Color(0xFF7CE1EF),
       icon: Icons.sports_soccer,
-      isPrimary: true,
+      filledButton: true,
+      scores: [
+        _BracketMatchData(
+          teamA: 'BSIT',
+          teamB: 'BFPT',
+          scoreA: 118,
+          scoreB: 112,
+        ),
+        _BracketMatchData(
+          teamA: 'BTLED',
+          teamB: 'BSIT',
+          scoreA: 104,
+          scoreB: 121,
+        ),
+      ],
+      liveMatch: _BracketMatchData(
+        teamA: 'BTLED',
+        teamB: 'BFPT',
+        scoreA: 98,
+        scoreB: 96,
+        isLive: true,
+      ),
     ),
     _BracketSportCardData(
       name: 'MOBILE LEGEND',
       accentColor: Color(0xFFFF7A18),
       icon: Icons.sports_esports,
+      scores: [
+        _BracketMatchData(teamA: 'BSCS', teamB: 'BSEMC', scoreA: 2, scoreB: 0),
+        _BracketMatchData(teamA: 'BSBA', teamB: 'BSIT', scoreA: 1, scoreB: 2),
+      ],
+      liveMatch: _BracketMatchData(
+        teamA: 'BSCS',
+        teamB: 'BSIT',
+        scoreA: 1,
+        scoreB: 1,
+        isLive: true,
+      ),
     ),
     _BracketSportCardData(
       name: 'TENNIS',
       accentColor: Color(0xFF7CE1EF),
       icon: Icons.sports_tennis,
+      scores: [
+        _BracketMatchData(teamA: 'BSA', teamB: 'BECED', scoreA: 6, scoreB: 3),
+        _BracketMatchData(teamA: 'BSIT', teamB: 'BSCHEM', scoreA: 7, scoreB: 5),
+      ],
+      liveMatch: _BracketMatchData(
+        teamA: 'BSA',
+        teamB: 'BSIT',
+        scoreA: 3,
+        scoreB: 2,
+        isLive: true,
+      ),
     ),
     _BracketSportCardData(
       name: 'VOLLEYBALL',
       accentColor: Color(0xFFFF7A18),
       icon: Icons.sports_volleyball,
+      scores: [
+        _BracketMatchData(teamA: 'BSIT', teamB: 'BSED', scoreA: 3, scoreB: 1),
+        _BracketMatchData(teamA: 'BTLED', teamB: 'BSTM', scoreA: 2, scoreB: 3),
+      ],
+      liveMatch: _BracketMatchData(
+        teamA: 'BSIT',
+        teamB: 'BSTM',
+        scoreA: 2,
+        scoreB: 2,
+        isLive: true,
+      ),
     ),
   ];
 
@@ -203,7 +279,19 @@ class _BracketPageState extends State<BracketPage> {
                     else ...[
                       _SelectedCategoryBanner(category: _selectedCategory!),
                       const SizedBox(height: 18),
-                      _FeaturedBracketCard(category: _selectedCategory!),
+                      _FeaturedBracketCard(
+                        category: _selectedCategory!,
+                        onViewBracket: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => _BracketDetailsPage(
+                                category: _selectedCategory!,
+                                sport: _featuredSport,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                       const SizedBox(height: 26),
                       GridView.builder(
                         shrinkWrap: true,
@@ -217,7 +305,10 @@ class _BracketPageState extends State<BracketPage> {
                               mainAxisExtent: 128,
                             ),
                         itemBuilder: (context, index) {
-                          return _BracketSportCard(team: _sports[index]);
+                          return _BracketSportCard(
+                            team: _sports[index],
+                            category: _selectedCategory!,
+                          );
                         },
                       ),
                     ],
@@ -294,9 +385,13 @@ class _BracketHeader extends StatelessWidget {
 }
 
 class _FeaturedBracketCard extends StatelessWidget {
-  const _FeaturedBracketCard({required this.category});
+  const _FeaturedBracketCard({
+    required this.category,
+    required this.onViewBracket,
+  });
 
   final String category;
+  final VoidCallback onViewBracket;
 
   @override
   Widget build(BuildContext context) {
@@ -355,17 +450,22 @@ class _FeaturedBracketCard extends StatelessWidget {
               child: Row(
                 children: [
                   const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
+                  TextButton(
+                    onPressed: onViewBracket,
+                    style: TextButton.styleFrom(
+                      backgroundColor: const Color(0xFF7CE1EF),
+                      foregroundColor: const Color(0xFF061014),
+                      shape: const RoundedRectangleBorder(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                     ),
-                    color: const Color(0xFF7CE1EF),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'BRACKET',
+                          'VIEW BRACKET',
                           style: TextStyle(
                             color: Color(0xFF061014),
                             fontSize: 8,
@@ -374,11 +474,7 @@ class _FeaturedBracketCard extends StatelessWidget {
                           ),
                         ),
                         SizedBox(width: 4),
-                        Icon(
-                          Icons.open_in_new,
-                          size: 10,
-                          color: Color(0xFF061014),
-                        ),
+                        Icon(Icons.open_in_new, size: 10),
                       ],
                     ),
                   ),
@@ -420,9 +516,10 @@ class _FeaturedBracketCard extends StatelessWidget {
 }
 
 class _BracketSportCard extends StatelessWidget {
-  const _BracketSportCard({required this.team});
+  const _BracketSportCard({required this.team, required this.category});
 
   final _BracketSportCardData team;
+  final String category;
 
   @override
   Widget build(BuildContext context) {
@@ -450,49 +547,377 @@ class _BracketSportCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               height: 30,
-              child: team.isPrimary
-                  ? DecoratedBox(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF7CE1EF), Color(0xFF4CBBD1)],
-                        ),
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          _BracketDetailsPage(category: category, sport: team),
+                    ),
+                  );
+                },
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: team.accentColor),
+                  shape: const RoundedRectangleBorder(),
+                  foregroundColor: team.filledButton
+                      ? const Color(0xFF061014)
+                      : team.accentColor,
+                  backgroundColor: team.filledButton
+                      ? const Color(0xFF7CE1EF)
+                      : Colors.transparent,
+                  padding: EdgeInsets.zero,
+                  textStyle: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.9,
+                  ),
+                ),
+                child: const Text('VIEW BRACKET'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BracketDetailsPage extends StatelessWidget {
+  const _BracketDetailsPage({required this.category, required this.sport});
+
+  final String category;
+  final _BracketSportCardData sport;
+
+  @override
+  Widget build(BuildContext context) {
+    final seasonLabel = sport.name == 'BASKETBALL' ? '2026' : '2025';
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0B0D),
+      body: SafeArea(
+        child: Container(
+          decoration: const BoxDecoration(
+            border: Border(
+              left: BorderSide(color: Color(0xFF00C5D9), width: 1.5),
+            ),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: Color(0xFF7CE1EF),
+                        size: 18,
                       ),
-                      child: TextButton(
-                        onPressed: () {},
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFF061014),
-                          shape: const RoundedRectangleBorder(),
-                          padding: EdgeInsets.zero,
-                        ),
-                        child: const Text(
-                          'BRACKET',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.9,
-                          ),
-                        ),
+                      splashRadius: 18,
+                    ),
+                    const Text(
+                      'BRACKET',
+                      style: TextStyle(
+                        color: Color(0xFF7CE1EF),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 2,
                       ),
-                    )
-                  : OutlinedButton(
+                    ),
+                  ],
+                ),
+                Container(
+                  margin: const EdgeInsets.only(bottom: 18),
+                  height: 1,
+                  color: const Color(0xFF1E2128),
+                ),
+                Text(
+                  '• ${sport.name.toLowerCase()}',
+                  style: const TextStyle(
+                    color: Color(0xFFFF7A18),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${sport.name}\n$seasonLabel',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    height: 0.9,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  height: 32,
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF7CE1EF), Color(0xFF42BDD4)],
+                      ),
+                    ),
+                    child: TextButton(
                       onPressed: () {},
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: team.accentColor),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF061014),
                         shape: const RoundedRectangleBorder(),
-                        foregroundColor: team.accentColor,
-                        padding: EdgeInsets.zero,
-                        textStyle: const TextStyle(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                      ),
+                      child: const Text(
+                        'BRACKET VIEW',
+                        style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.9,
                         ),
                       ),
-                      child: Text('BRACKET'),
                     ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 28,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFF00C5D9)),
+                    ),
+                    child: TextButton.icon(
+                      onPressed: () {},
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF7CE1EF),
+                        shape: const RoundedRectangleBorder(),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      icon: const Icon(Icons.filter_alt_outlined, size: 14),
+                      label: Text(
+                        category.isEmpty ? 'FILTER' : category,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _RoundLabel(
+                  label: 'ROUND 1',
+                  accentColor: const Color(0xFF76787F),
+                ),
+                const SizedBox(height: 8),
+                ...sport.scores.map(
+                  (match) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _BracketMatchCard(
+                      match: match,
+                      accentColor: const Color(0xFF1E2128),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _RoundLabel(
+                  label: 'ROUND 2 (WINNER VS WINNER)',
+                  accentColor: const Color(0xFFFF7A18),
+                  isLive: sport.liveMatch.isLive,
+                ),
+                const SizedBox(height: 8),
+                _BracketMatchCard(
+                  match: sport.liveMatch,
+                  accentColor: const Color(0xFFFF7A18),
+                ),
+                const SizedBox(height: 16),
+                _RoundLabel(label: 'FINALS', accentColor: Colors.white),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 28),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF151618),
+                    border: Border.all(color: const Color(0xFF2A2D34)),
+                  ),
+                  child: const Column(
+                    children: [
+                      Icon(
+                        Icons.emoji_events_outlined,
+                        color: Color(0xFF5E636B),
+                        size: 20,
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'TBD vs TBD',
+                        style: TextStyle(
+                          color: Color(0xFF868B92),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'June 12 • 21:00 EST',
+                        style: TextStyle(
+                          color: Color(0xFF5F646B),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoundLabel extends StatelessWidget {
+  const _RoundLabel({
+    required this.label,
+    required this.accentColor,
+    this.isLive = false,
+  });
+
+  final String label;
+  final Color accentColor;
+  final bool isLive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(width: 3, height: 16, color: accentColor),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            color: const Color(0xFF8B9096),
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+          ),
+        ),
+        if (isLive) ...[
+          const Spacer(),
+          const Icon(Icons.circle, color: Color(0xFFFF4D5A), size: 6),
+          const SizedBox(width: 4),
+          const Text(
+            'Q4 LIVE',
+            style: TextStyle(
+              color: Color(0xFFFF4D5A),
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _BracketMatchCard extends StatelessWidget {
+  const _BracketMatchCard({required this.match, required this.accentColor});
+
+  final _BracketMatchData match;
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: accentColor, width: 3)),
+        gradient: match.isLive
+            ? LinearGradient(
+                colors: [
+                  const Color(0xFF1A1815),
+                  const Color(0xFF1A1714).withValues(alpha: 0.4),
+                ],
+              )
+            : null,
+      ),
+      child: Container(
+        color: const Color(0xFF17191C),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(
+          children: [
+            _MatchRow(
+              teamName: match.teamA,
+              score: match.scoreA,
+              highlight: match.scoreA >= match.scoreB,
+              icon: Icons.shield_outlined,
+            ),
+            Divider(color: Colors.white.withValues(alpha: 0.08), height: 12),
+            _MatchRow(
+              teamName: match.teamB,
+              score: match.scoreB,
+              highlight: match.scoreB >= match.scoreA,
+              icon: Icons.blur_circular,
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MatchRow extends StatelessWidget {
+  const _MatchRow({
+    required this.teamName,
+    required this.score,
+    required this.highlight,
+    required this.icon,
+  });
+
+  final String teamName;
+  final int score;
+  final bool highlight;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: const Color(0xFF22252B),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Icon(icon, size: 10, color: const Color(0xFF7CE1EF)),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            teamName,
+            style: const TextStyle(
+              color: Color(0xFF9BA0A6),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Text(
+          '$score',
+          style: TextStyle(
+            color: highlight
+                ? const Color(0xFF7CE1EF)
+                : const Color(0xFF8A8F96),
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -783,11 +1208,31 @@ class _BracketSportCardData {
     required this.name,
     required this.accentColor,
     required this.icon,
-    this.isPrimary = false,
+    required this.scores,
+    required this.liveMatch,
+    this.filledButton = false,
   });
 
   final String name;
   final Color accentColor;
   final IconData icon;
-  final bool isPrimary;
+  final List<_BracketMatchData> scores;
+  final _BracketMatchData liveMatch;
+  final bool filledButton;
+}
+
+class _BracketMatchData {
+  const _BracketMatchData({
+    required this.teamA,
+    required this.teamB,
+    required this.scoreA,
+    required this.scoreB,
+    this.isLive = false,
+  });
+
+  final String teamA;
+  final String teamB;
+  final int scoreA;
+  final int scoreB;
+  final bool isLive;
 }

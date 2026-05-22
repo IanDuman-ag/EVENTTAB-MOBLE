@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'bracket.dart';
+import 'home.dart';
+import 'profile.dart';
+import 'rankings.dart';
 import 'teams.dart';
 
 class SchedulePage extends StatefulWidget {
@@ -20,6 +23,12 @@ class _SchedulePageState extends State<SchedulePage> {
     _ScheduleDate(month: 'OCT', day: '27'),
     _ScheduleDate(month: 'OCT', day: '28'),
   ];
+
+  void _navigateToPage(Widget page) {
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => page));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +100,10 @@ class _SchedulePageState extends State<SchedulePage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _BottomNav(activeLabel: 'SCHEDULE'),
+      bottomNavigationBar: _BottomNav(
+        activeLabel: 'SCHEDULE',
+        onNavigate: _navigateToPage,
+      ),
     );
   }
 }
@@ -111,15 +123,26 @@ class _ScheduleHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: const Color(0xFF12141A),
-              border: Border.all(color: const Color(0xFF00C5D9)),
-              borderRadius: BorderRadius.circular(8),
+          GestureDetector(
+            onTap: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const ProfilePage()));
+            },
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF12141A),
+                border: Border.all(color: const Color(0xFF00C5D9)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.person,
+                color: Color(0xFFFFB083),
+                size: 20,
+              ),
             ),
-            child: const Icon(Icons.person, color: Color(0xFFFFB083), size: 20),
           ),
           const SizedBox(width: 10),
           const Text(
@@ -238,8 +261,6 @@ class _LiveMatchCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const _LiveBadge(),
-                const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
                     'GRAND FINALS - MAP 5',
@@ -298,26 +319,6 @@ class _LiveMatchCard extends StatelessWidget {
                       fontSize: 8,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  height: 30,
-                  child: TextButton(
-                    onPressed: () {},
-                    style: TextButton.styleFrom(
-                      backgroundColor: const Color(0xFF7CE1EF),
-                      foregroundColor: const Color(0xFF061014),
-                      shape: const RoundedRectangleBorder(),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                    ),
-                    child: const Text(
-                      'WATCH LIVE',
-                      style: TextStyle(
-                        fontSize: 8,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.8,
-                      ),
                     ),
                   ),
                 ),
@@ -555,34 +556,11 @@ class _ScoreBlock extends StatelessWidget {
   }
 }
 
-class _LiveBadge extends StatelessWidget {
-  const _LiveBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE91E63),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Text(
-        'LIVE',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 8,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-}
-
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.activeLabel});
+  const _BottomNav({required this.activeLabel, required this.onNavigate});
 
   final String activeLabel;
+  final ValueChanged<Widget> onNavigate;
 
   @override
   Widget build(BuildContext context) {
@@ -597,11 +575,21 @@ class _BottomNav extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _NavItem(icon: Icons.home, label: 'HOME', isActive: false),
+              _NavItem(
+                icon: Icons.home,
+                label: 'HOME',
+                isActive: false,
+                onTap: () {
+                  onNavigate(const HomePage());
+                },
+              ),
               _NavItem(
                 icon: Icons.emoji_events_outlined,
                 label: 'RANKINGS',
                 isActive: false,
+                onTap: () {
+                  onNavigate(const RankingsPage());
+                },
               ),
               _NavItem(
                 icon: Icons.calendar_today,
@@ -613,9 +601,7 @@ class _BottomNav extends StatelessWidget {
                 label: 'TEAMS',
                 isActive: false,
                 onTap: () {
-                  Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const TeamsPage()));
+                  onNavigate(const TeamsPage());
                 },
               ),
               _NavItem(

@@ -5,6 +5,10 @@ import 'package:http/http.dart' as http;
 
 import 'auth_service.dart';
 import 'bracket.dart';
+import 'home.dart';
+import 'profile.dart';
+import 'schedule.dart';
+import 'teams.dart';
 
 class RankingsPage extends StatefulWidget {
   const RankingsPage({super.key, this.onNavigate});
@@ -415,12 +419,10 @@ class _RankingsPageState extends State<RankingsPage> {
     }
   }
 
-  void _handleHomeTap() {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-      return;
-    }
-    widget.onNavigate?.call('home');
+  void _navigateToPage(Widget page) {
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => page));
   }
 
   @override
@@ -472,20 +474,27 @@ class _RankingsPageState extends State<RankingsPage> {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: const Color(0xFF00C5D9),
-                        width: 2,
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const ProfilePage()),
+                      );
+                    },
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: const Color(0xFF00C5D9),
+                          width: 2,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.person,
-                      color: Color(0xFF00C5D9),
-                      size: 24,
+                      child: const Icon(
+                        Icons.person,
+                        color: Color(0xFF00C5D9),
+                        size: 24,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1259,10 +1268,31 @@ class _RankingsPageState extends State<RankingsPage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(Icons.home, 'HOME', false, onTap: _handleHomeTap),
+              _buildNavItem(
+                Icons.home,
+                'HOME',
+                false,
+                onTap: () {
+                  _navigateToPage(const HomePage());
+                },
+              ),
               _buildNavItem(Icons.emoji_events_outlined, 'RANKINGS', true),
-              _buildNavItem(Icons.calendar_today, 'SCHEDULE', false),
-              _buildNavItem(Icons.people_outline, 'TEAMS', false),
+              _buildNavItem(
+                Icons.calendar_today,
+                'SCHEDULE',
+                false,
+                onTap: () {
+                  _navigateToPage(const SchedulePage());
+                },
+              ),
+              _buildNavItem(
+                Icons.people_outline,
+                'TEAMS',
+                false,
+                onTap: () {
+                  _navigateToPage(const TeamsPage());
+                },
+              ),
               _buildNavItem(
                 Icons.account_tree_outlined,
                 'BRACKET',

@@ -66,9 +66,19 @@ def login(request):
     user = serializer.validated_data["user"]
     token, _ = Token.objects.get_or_create(user=user)
 
+    # Determine role: a user is a judge if they are assigned to any judging event
+    # or if they are staff/superuser. Viewers are everyone else.
+    from events.models import JudgingEvent
+    is_judge = (
+        user.is_staff
+        or user.is_superuser
+        or JudgingEvent.objects.filter(assigned_judges=user).exists()
+    )
+
     return Response(
         {
             "token": token.key,
+            "role": "judge" if is_judge else "viewer",
             "user": {
                 "id": user.id,
                 "username": user.username,

@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from .models import Team, Match, Activity
+from .models import Team, Match, Activity, EventCategory, JudgingEvent, Candidate, JudgeScore, Criterion
+from django.db.models import Sum
+from decimal import Decimal
 
 
 class TeamSerializer(serializers.ModelSerializer):
@@ -45,3 +47,41 @@ class ActivitySerializer(serializers.ModelSerializer):
             return f"{minutes} MINUTE{'S' if minutes > 1 else ''} AGO"
         else:
             return "JUST NOW"
+
+
+# ---------------------------------------------------------------------------
+# Rankings serializers
+# ---------------------------------------------------------------------------
+
+class EventCategorySerializer(serializers.ModelSerializer):
+    event_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EventCategory
+        fields = ['id', 'name', 'category_type', 'description', 'icon', 'color', 'event_count']
+
+    def get_event_count(self, obj):
+        return obj.events.count()
+
+
+class JudgingEventSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    candidate_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = JudgingEvent
+        fields = ['id', 'title', 'category', 'category_name', 'date', 'time',
+                  'venue', 'status', 'description', 'candidate_count']
+
+    def get_candidate_count(self, obj):
+        return obj.candidates.count()
+
+
+class CandidateStandingSerializer(serializers.Serializer):
+    """Serializer for computed candidate standings (rank + total score)."""
+    rank = serializers.IntegerField()
+    candidate_id = serializers.IntegerField()
+    name = serializers.CharField()
+    number = serializers.IntegerField()
+    total_score = serializers.DecimalField(max_digits=10, decimal_places=2)
+    is_live = serializers.BooleanField()

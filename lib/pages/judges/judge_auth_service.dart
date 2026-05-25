@@ -3,10 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-const String defaultApiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://127.0.0.1:8000',
-);
+import '../../api_config.dart';
 
 // ---------------------------------------------------------------------------
 // Models

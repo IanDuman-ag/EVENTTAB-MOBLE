@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../../api_config.dart';
 import 'auth_service.dart';
 import 'bracket.dart';
 import 'profile.dart';
@@ -36,30 +37,27 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final token = AuthSession.current?.token;
-      if (token == null) {
-        throw Exception('Not authenticated');
-      }
 
-      final headers = {
-        'Authorization': 'Token $token',
+      final headers = <String, String>{
         'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Token $token',
       };
 
       // Fetch featured match
       final featuredResponse = await http.get(
-        Uri.parse('http://127.0.0.1:8000/api/events/matches/featured/'),
+        apiUri('/api/events/matches/featured/'),
         headers: headers,
       );
 
       // Fetch upcoming matches
       final upcomingResponse = await http.get(
-        Uri.parse('http://127.0.0.1:8000/api/events/matches/upcoming/'),
+        apiUri('/api/events/matches/upcoming/'),
         headers: headers,
       );
 
       // Fetch activities
       final activitiesResponse = await http.get(
-        Uri.parse('http://127.0.0.1:8000/api/events/activities/'),
+        apiUri('/api/events/activities/'),
         headers: headers,
       );
 

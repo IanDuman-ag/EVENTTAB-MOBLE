@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../../api_config.dart';
 import 'judge_auth_service.dart';
 import 'judge_nav.dart';
 import 'jevent.dart';
@@ -53,7 +54,7 @@ class _JScoringPageState extends State<JScoringPage> {
       final eventId = widget.event['id'];
       final candidateId = widget.candidate['id'];
       final res = await http.get(
-        Uri.parse('http://127.0.0.1:8000/api/events/judging-events/$eventId/my_scores/?candidate_id=$candidateId'),
+        apiUri('/api/events/judging-events/$eventId/my_scores/?candidate_id=$candidateId'),
         headers: {'Authorization': 'Token $token'},
       );
       if (res.statusCode == 200) {
@@ -104,7 +105,7 @@ class _JScoringPageState extends State<JScoringPage> {
       }).toList();
 
       final res = await http.post(
-        Uri.parse('http://127.0.0.1:8000/api/events/judging-events/$eventId/submit_scores/'),
+        apiUri('/api/events/judging-events/$eventId/submit_scores/'),
         headers: {
           'Authorization': 'Token $token',
           'Content-Type': 'application/json',

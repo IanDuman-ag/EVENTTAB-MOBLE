@@ -13,10 +13,28 @@ from .serializers import (
 
 
 class TeamViewSet(viewsets.ReadOnlyModelViewSet):
-    """API endpoint for viewing teams — public, no auth required"""
+    """
+    GET /api/events/teams/                        — all teams
+    GET /api/events/teams/{id}/                   — single team
+    GET /api/events/teams/{id}/matches/           — recent matches for a team
+    GET /api/events/teams/?updated_after=ISO      — teams changed since timestamp
+    """
     queryset = Team.objects.all()
     serializer_class = TeamSerializer
     permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        updated_after = self.request.query_params.get('updated_after')
+        if updated_after:
+            try:
+                from django.utils.dateparse import parse_datetime
+                dt = parse_datetime(updated_after)
+                if dt:
+                    qs = qs.filter(updated_at__gt=dt)
+            except (ValueError, TypeError):
+                pass
+        return qs
 
     @action(detail=True, methods=['get'])
     def matches(self, request, pk=None):
@@ -30,7 +48,15 @@ class TeamViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class MatchViewSet(viewsets.ReadOnlyModelViewSet):
-    """API endpoint for viewing matches — public, no auth required"""
+    """
+    GET /api/events/matches/                      — all matches
+    GET /api/events/matches/{id}/                 — single match
+    GET /api/events/matches/featured/             — featured match
+    GET /api/events/matches/upcoming/             — upcoming matches
+    GET /api/events/matches/?sport=basketball     — filter by sport
+    GET /api/events/matches/?updated_after=ISO    — matches changed since timestamp
+    GET /api/events/matches/?status=live          — filter by status
+    """
     queryset = Match.objects.all()
     serializer_class = MatchSerializer
     permission_classes = [permissions.AllowAny]
@@ -40,6 +66,18 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
         sport = self.request.query_params.get('sport')
         if sport and sport != 'all':
             qs = qs.filter(sport=sport)
+        status = self.request.query_params.get('status')
+        if status:
+            qs = qs.filter(status=status)
+        updated_after = self.request.query_params.get('updated_after')
+        if updated_after:
+            try:
+                from django.utils.dateparse import parse_datetime
+                dt = parse_datetime(updated_after)
+                if dt:
+                    qs = qs.filter(updated_at__gt=dt)
+            except (ValueError, TypeError):
+                pass
         return qs
 
     @action(detail=False, methods=['get'])

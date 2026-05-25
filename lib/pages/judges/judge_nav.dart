@@ -8,15 +8,25 @@ class JudgeNav {
   JudgeNav._();
 
   static void toHome(BuildContext context) {
-    var atHome = false;
+    // Check if we're already on the home page
+    if (ModalRoute.of(context)?.settings.name == '/judge/home') return;
+    
+    // Try to find the home page in the stack
+    var foundHome = false;
     Navigator.of(context).popUntil((route) {
       if (route.settings.name == '/judge/home') {
-        atHome = true;
+        foundHome = true;
         return true;
       }
-      return route.isFirst;
+      // Stop at the first route that's not a judge page to avoid going back to role selection
+      if (route.isFirst || route.settings.name == null || !route.settings.name!.startsWith('/judge/')) {
+        return true;
+      }
+      return false;
     });
-    if (!atHome) {
+    
+    // If we didn't find home in the stack, push it
+    if (!foundHome) {
       Navigator.of(context).push(
         MaterialPageRoute(
           settings: const RouteSettings(name: '/judge/home'),

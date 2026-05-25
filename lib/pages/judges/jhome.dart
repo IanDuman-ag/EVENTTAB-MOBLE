@@ -1,8 +1,66 @@
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import '../../api_config.dart';
 import 'jevent.dart';
+import 'judge_auth_service.dart';
 
-class JudgeHomePage extends StatelessWidget {
+const _categoryMeta = {
+  'academic':       (icon: Icons.school_rounded,          color: Color(0xFF2196F3)),
+  'esports':        (icon: Icons.sports_esports_rounded,  color: Color(0xFF9C27B0)),
+  'sports':         (icon: Icons.sports_soccer_rounded,   color: Color(0xFF4CAF50)),
+  'socio_cultural': (icon: Icons.theater_comedy_rounded,  color: Color(0xFFE91E63)),
+};
+
+class JudgeHomePage extends StatefulWidget {
   const JudgeHomePage({super.key});
+  @override
+  State<JudgeHomePage> createState() => _JudgeHomePageState();
+}
+
+class _JudgeHomePageState extends State<JudgeHomePage> {
+  int _liveEventCount = 0;
+  List<dynamic> _categories = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final token = JudgeAuthSession.current?.token ?? '';
+      final headers = {'Authorization': 'Token $token'};
+
+      final catRes = await http.get(
+        apiUri('/api/events/categories/'),
+        headers: headers,
+      );
+      final evRes = await http.get(
+        apiUri('/api/events/judging-events/'),
+        headers: headers,
+      );
+
+      if (mounted) {
+        setState(() {
+          if (catRes.statusCode == 200) {
+            _categories = jsonDecode(catRes.body) as List;
+          }
+          if (evRes.statusCode == 200) {
+            final events = jsonDecode(evRes.body) as List;
+            _liveEventCount = events
+                .where((e) => e['status'] == 'active')
+                .length;
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +113,9 @@ class JudgeHomePage extends StatelessWidget {
             ),
             // Content
             Expanded(
-              child: SingleChildScrollView(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF9F66FF)))
+                  : SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -120,9 +180,11 @@ class JudgeHomePage extends StatelessWidget {
                                                   fontSize: 11, fontWeight: FontWeight.w700,
                                                   letterSpacing: 1.2)),
                                           const SizedBox(height: 4),
-                                          const Text('12 Live Events',
-                                              style: TextStyle(color: Colors.white,
-                                                  fontSize: 22, fontWeight: FontWeight.w900)),
+                                          Text(
+                                            '$_liveEventCount Live Event${_liveEventCount != 1 ? 's' : ''}',
+                                            style: const TextStyle(color: Colors.white,
+                                                fontSize: 22, fontWeight: FontWeight.w900),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -136,64 +198,41 @@ class JudgeHomePage extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // Event Categories Section
+                    // Event Categories Section â€” from API
                     Padding(
                       padding: const EdgeInsets.all(20),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _EventCategoryCard(
-                                  icon: Icons.school_rounded,
-                                  iconColor: const Color(0xFF2196F3),
-                                  title: 'Academic Event',
-                                  subtitle: 'Academic competitions',
+                      child: _categories.isEmpty
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Text('No categories yet.',
+                                    style: TextStyle(color: Color(0xFF7F7890))),
+                              ),
+                            )
+                          : GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                                childAspectRatio: 0.9,
+                              ),
+                              itemCount: _categories.length,
+                              itemBuilder: (ctx, i) {
+                                final cat = _categories[i];
+                                final meta = _categoryMeta[cat['category_type']] ??
+                                    (icon: Icons.event_rounded, color: const Color(0xFF9F66FF));
+                                return _EventCategoryCard(
+                                  icon: meta.icon,
+                                  iconColor: meta.color,
+                                  title: cat['name'] ?? '',
+                                  subtitle: cat['description'] ?? '',
                                   onTap: () => Navigator.push(context,
                                       MaterialPageRoute(builder: (_) => const JEventPage())),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _EventCategoryCard(
-                                  icon: Icons.sports_esports_rounded,
-                                  iconColor: const Color(0xFF9C27B0),
-                                  title: 'Esports Event',
-                                  subtitle: 'Gaming competitions',
-                                  onTap: () => Navigator.push(context,
-                                      MaterialPageRoute(builder: (_) => const JEventPage())),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _EventCategoryCard(
-                                  icon: Icons.sports_soccer_rounded,
-                                  iconColor: const Color(0xFF4CAF50),
-                                  title: 'Sports Event',
-                                  subtitle: 'Sports competitions',
-                                  onTap: () => Navigator.push(context,
-                                      MaterialPageRoute(builder: (_) => const JEventPage())),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _EventCategoryCard(
-                                  icon: Icons.theater_comedy_rounded,
-                                  iconColor: const Color(0xFFE91E63),
-                                  title: 'Socio Cultural',
-                                  subtitle: 'Cultural events',
-                                  onTap: () => Navigator.push(context,
-                                      MaterialPageRoute(builder: (_) => const JEventPage())),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                                );
+                              },
+                            ),
                     ),
                     const SizedBox(height: 60),
                   ],
@@ -235,6 +274,8 @@ class JudgeHomePage extends StatelessWidget {
   }
 }
 
+// ─── Bottom nav item ─────────────────────────────────────
+
 class _BottomNavItem extends StatelessWidget {
   const _BottomNavItem({
     required this.icon,
@@ -257,12 +298,16 @@ class _BottomNavItem extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 26),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+          Text(label,
+              style: TextStyle(color: color, fontSize: 11,
+                  fontWeight: FontWeight.w700)),
         ],
       ),
     );
   }
 }
+
+// ─── Event category card ──────────────────────────────────
 
 class _EventCategoryCard extends StatelessWidget {
   const _EventCategoryCard({
@@ -304,37 +349,21 @@ class _EventCategoryCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: 56, height: 56,
                 decoration: BoxDecoration(
                   color: iconColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 28,
-                ),
+                child: Icon(icon, color: iconColor, size: 28),
               ),
               const SizedBox(height: 16),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  height: 1.2,
-                ),
-              ),
+              Text(title,
+                  style: const TextStyle(color: Colors.white, fontSize: 16,
+                      fontWeight: FontWeight.w800, height: 1.2)),
               const SizedBox(height: 6),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  color: Color(0xFF7F7890),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              Text(subtitle,
+                  style: const TextStyle(color: Color(0xFF7F7890),
+                      fontSize: 12, fontWeight: FontWeight.w500)),
             ],
           ),
         ),

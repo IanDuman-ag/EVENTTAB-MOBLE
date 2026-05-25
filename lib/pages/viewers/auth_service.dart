@@ -15,19 +15,25 @@ class AuthUser {
     required this.username,
     required this.email,
     required this.token,
+    required this.role,
   });
 
   final int id;
   final String username;
   final String email;
   final String token;
+  /// 'judge' or 'viewer'
+  final String role;
 
-  factory AuthUser.fromJson(Map<String, dynamic> json, String token) {
+  bool get isJudge => role == 'judge';
+
+  factory AuthUser.fromJson(Map<String, dynamic> json, String token, String role) {
     return AuthUser(
       id: json['id'] as int,
       username: json['username'] as String,
       email: json['email'] as String,
       token: token,
+      role: role,
     );
   }
 }
@@ -125,6 +131,7 @@ class AuthService {
     final user = AuthUser.fromJson(
       body['user'] as Map<String, dynamic>,
       body['token'] as String,
+      body['role'] as String? ?? 'viewer',
     );
     AuthSession.set(user);
     return user;
@@ -154,6 +161,7 @@ class AuthService {
     final user = AuthUser.fromJson(
       body['user'] as Map<String, dynamic>,
       body['token'] as String,
+      body['role'] as String? ?? 'viewer',
     );
     AuthSession.set(user);
     return user;

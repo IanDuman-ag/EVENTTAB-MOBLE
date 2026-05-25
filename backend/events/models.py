@@ -7,12 +7,18 @@ class Team(models.Model):
     """Represents a team participating in events"""
     name = models.CharField(max_length=100)
     abbreviation = models.CharField(max_length=10)
-    logo_icon = models.CharField(max_length=50, blank=True, help_text="Icon or emoji representing the team")
-    color = models.CharField(max_length=7, default="#00C5D9", help_text="Hex color code")
-    
+    logo_icon = models.CharField(max_length=50, blank=True,
+        help_text="Short abbreviation shown inside the hexagon logo, e.g. 'IT'")
+    color = models.CharField(max_length=7, default="#00C5D9",
+        help_text="Hex color code, e.g. #FF0000")
+    description = models.TextField(blank=True,
+        help_text="Short team bio shown on the Team Details page")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['name']
 
@@ -20,43 +26,58 @@ class Team(models.Model):
 class Match(models.Model):
     """Represents a sports match/game"""
     STATUS_CHOICES = [
-        ('upcoming', 'Upcoming'),
-        ('live', 'Live'),
+        ('upcoming',  'Upcoming'),
+        ('live',      'Live'),
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
     ]
-    
+
     SPORT_CHOICES = [
         ('basketball', 'Basketball'),
         ('volleyball', 'Volleyball'),
-        ('football', 'Football'),
-        ('other', 'Other'),
+        ('football',   'Football'),
+        ('other',      'Other'),
     ]
-    
-    title = models.CharField(max_length=200)
-    sport = models.CharField(max_length=50, choices=SPORT_CHOICES, default='basketball')
-    team_a = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='matches_as_team_a')
-    team_b = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='matches_as_team_b')
-    score_a = models.IntegerField(null=True, blank=True)
-    score_b = models.IntegerField(null=True, blank=True)
+
+    ROUND_CHOICES = [
+        ('group_stage',   'Group Stage'),
+        ('quarterfinal',  'Quarterfinal'),
+        ('semifinal',     'Semifinal'),
+        ('final',         'Final'),
+        ('other',         'Other'),
+    ]
+
+    title         = models.CharField(max_length=200)
+    sport         = models.CharField(max_length=50, choices=SPORT_CHOICES, default='basketball')
+    round_label   = models.CharField(max_length=30, choices=ROUND_CHOICES, default='group_stage',
+                        help_text="Stage of the competition shown as a badge")
+    team_a        = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='matches_as_team_a')
+    team_b        = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='matches_as_team_b')
+    score_a       = models.IntegerField(null=True, blank=True)
+    score_b       = models.IntegerField(null=True, blank=True)
     scheduled_time = models.DateTimeField()
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='upcoming')
-    is_featured = models.BooleanField(default=False)
-    venue = models.CharField(max_length=200, blank=True)
-    
+    status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default='upcoming')
+    is_featured   = models.BooleanField(default=False,
+                        help_text="Show this match in the 'UP NEXT' featured slot")
+    venue         = models.CharField(max_length=200, blank=True)
+    venue_full    = models.CharField(max_length=300, blank=True,
+                        help_text="Full venue address, e.g. 'USTP Oroquieta Campus'")
+    notes         = models.TextField(blank=True,
+                        help_text="Shown in Match Details → Notes row")
+    updated_at    = models.DateTimeField(auto_now=True)
+
     def __str__(self):
         return f"{self.title}: {self.team_a.abbreviation} vs {self.team_b.abbreviation}"
-    
+
     @property
     def winner(self):
-        """Returns the winning team if match is completed"""
         if self.status == 'completed' and self.score_a is not None and self.score_b is not None:
             if self.score_a > self.score_b:
                 return self.team_a
             elif self.score_b > self.score_a:
                 return self.team_b
         return None
-    
+
     class Meta:
         ordering = ['scheduled_time']
         verbose_name_plural = 'Matches'

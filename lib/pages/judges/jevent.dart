@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../../api_config.dart';
 import 'judge_auth_service.dart';
 import 'judge_nav.dart';
 import 'jevent_detail.dart';
@@ -58,7 +59,7 @@ class _JEventPageState extends State<JEventPage> {
     try {
       final token = JudgeAuthSession.current?.token ?? '';
       final res = await http.get(
-        Uri.parse('http://127.0.0.1:8000/api/events/categories/'),
+        apiUri('/api/events/categories/'),
         headers: {'Authorization': 'Token $token'},
       );
       if (res.statusCode == 200) {
@@ -293,7 +294,7 @@ class _JEventListPageState extends State<JEventListPage> {
     try {
       final token = JudgeAuthSession.current?.token ?? '';
       final res = await http.get(
-        Uri.parse('http://127.0.0.1:8000/api/events/categories/${widget.categoryId}/events/'),
+        apiUri('/api/events/categories/${widget.categoryId}/events/'),
         headers: {'Authorization': 'Token $token'},
       );
       if (res.statusCode == 200) {

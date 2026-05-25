@@ -7,20 +7,24 @@ from decimal import Decimal
 class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
-        fields = ['id', 'name', 'abbreviation', 'logo_icon', 'color']
+        fields = ['id', 'name', 'abbreviation', 'logo_icon', 'color',
+                  'description', 'updated_at']
 
 
 class MatchSerializer(serializers.ModelSerializer):
-    team_a = TeamSerializer(read_only=True)
-    team_b = TeamSerializer(read_only=True)
-    winner = TeamSerializer(read_only=True)
-    
+    team_a      = TeamSerializer(read_only=True)
+    team_b      = TeamSerializer(read_only=True)
+    winner      = TeamSerializer(read_only=True)
+    round_label_display = serializers.CharField(
+        source='get_round_label_display', read_only=True)
+
     class Meta:
         model = Match
         fields = [
-            'id', 'title', 'sport', 'team_a', 'team_b', 
-            'score_a', 'score_b', 'scheduled_time', 'status',
-            'is_featured', 'venue', 'winner'
+            'id', 'title', 'sport', 'round_label', 'round_label_display',
+            'team_a', 'team_b', 'score_a', 'score_b',
+            'scheduled_time', 'status', 'is_featured',
+            'venue', 'venue_full', 'notes', 'winner', 'updated_at',
         ]
 
 

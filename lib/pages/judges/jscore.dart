@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../../api_config.dart';
-import 'judge_auth_service.dart';
+import '../auth/api_config.dart';
+import '../auth/judge_auth_service.dart';
 import 'judge_nav.dart';
 import 'jevent.dart';
 
@@ -343,8 +343,28 @@ class _JScoringPageState extends State<JScoringPage> {
                   final cid = c['id'] as int;
                   final maxScore = double.tryParse(c['max_score'].toString()) ?? 0;
                   final current = _scores[cid] ?? 0;
+                  // Guard: name might be a raw JSON string if admin entered it wrong.
+                  // Try to parse it and extract the real name.
+                  final rawName = c['name']?.toString() ?? '';
+                  String displayName = rawName;
+                  if (rawName.trimLeft().startsWith('{') ||
+                      rawName.trimLeft().startsWith('[')) {
+                    try {
+                      final parsed = jsonDecode(rawName);
+                      if (parsed is Map) {
+                        displayName = parsed['name']?.toString() ??
+                            parsed['title']?.toString() ??
+                            'Criterion ${cid}';
+                      } else if (parsed is List && parsed.isNotEmpty) {
+                        displayName = parsed.first['name']?.toString() ??
+                            'Criterion ${cid}';
+                      }
+                    } catch (_) {
+                      displayName = 'Criterion $cid';
+                    }
+                  }
                   return _ScoreRow(
-                    name: c['name'] ?? '',
+                    name: displayName,
                     maxScore: maxScore,
                     current: current,
                     onDecrement: () => _adjustScore(cid, -1, maxScore),

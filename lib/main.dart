@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'pages/viewers/login.dart';
+import 'pages/auth/login.dart';
 
 const String defaultApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',

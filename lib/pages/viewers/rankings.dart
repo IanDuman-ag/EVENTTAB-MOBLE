@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import 'auth_service.dart';
-import 'config.dart';
+import '../auth/auth_service.dart';
+import '../auth/config.dart';
 import 'bracket.dart';
 import 'home.dart';
 import 'schedule.dart';
@@ -12,7 +12,6 @@ import 'teams.dart';
 
 // ─── palette ─────────────────────────────────────────────
 const _kBg       = Color(0xFF0A0B0D);
-const _kCard     = Color(0xFF12141A);
 const _kBorder   = Color(0xFF1E2128);
 const _kCyan     = Color(0xFF00C5D9);
 const _kCyanLt   = Color(0xFF7CE1EF);
@@ -175,7 +174,7 @@ class _RankingsPageState extends State<RankingsPage>
     });
     try {
       final res = await http.get(
-          Uri.parse('$_baseUrl/api/events/judging-events/${event.id}/standings/'),
+          Uri.parse('$_baseUrl/api/events/rankings-events/${event.id}/standings/'),
           headers: _headers);
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body) as List;
@@ -193,14 +192,27 @@ class _RankingsPageState extends State<RankingsPage>
   void _goBack() {
     setState(() {
       _error = null;
-      if (_step == 2) _step = 1;
-      else if (_step == 1) _step = 0;
+      if (_step == 2) {
+        _step = 1;
+      } else if (_step == 1) {
+        _step = 0;
+      }
     });
     _fadeCtrl..reset()..forward();
   }
 
   void _nav(Widget page) => Navigator.of(context)
       .pushReplacement(MaterialPageRoute(builder: (_) => page));
+
+  VoidCallback _retryCurrentStep() {
+    if (_step == 2 && _selectedEvent != null) {
+      return () => _loadStandings(_selectedEvent!);
+    }
+    if (_step == 1 && _selectedCategory != null) {
+      return () => _loadEvents(_selectedCategory!);
+    }
+    return _loadCategories;
+  }
 
   // ─── Build ───────────────────────────────────────────────
 
@@ -279,7 +291,7 @@ class _RankingsPageState extends State<RankingsPage>
                 textAlign: TextAlign.center),
             const SizedBox(height: 20),
             GestureDetector(
-              onTap: _loadCategories,
+              onTap: _retryCurrentStep(),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 decoration: BoxDecoration(border: Border.all(color: _kCyan)),

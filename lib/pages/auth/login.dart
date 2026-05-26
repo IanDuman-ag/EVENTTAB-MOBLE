@@ -2,9 +2,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../judges/jhome.dart';
-import '../judges/judge_auth_service.dart';
+import 'judge_auth_service.dart';
 import 'auth_service.dart';
-import 'home.dart';
+import '../viewers/home.dart';
 
 // ─── palette ─────────────────────────────────────────────
 const _kBg      = Color(0xFF060A10);
@@ -60,11 +60,6 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      if (widget.onLogin != null) {
-        widget.onLogin!();
-        return;
-      }
-
       if (user.isJudge) {
         JudgeAuthSession.set(JudgeUser(
           id: user.id,
@@ -78,6 +73,8 @@ class _LoginPageState extends State<LoginPage> {
             builder: (_) => const JudgeHomePage(),
           ),
         );
+      } else if (widget.onLogin != null) {
+        widget.onLogin!();
       } else {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomePage()),
@@ -93,6 +90,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _continueAsGuest() {
+    AuthSession.clear();
+    JudgeAuthSession.clear();
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const HomePage()),
     );

@@ -72,6 +72,7 @@ def login(request):
     is_judge = (
         user.is_staff
         or user.is_superuser
+        or user.groups.filter(name__iexact="Judge").exists()
         or JudgingEvent.objects.filter(assigned_judges=user).exists()
     )
 

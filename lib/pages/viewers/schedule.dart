@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../../api_config.dart';
-import 'auth_service.dart';
+import '../auth/api_config.dart';
+import '../auth/auth_service.dart';
 import 'bracket.dart';
 import 'home.dart';
 import 'matchdetails.dart';

@@ -3,7 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import '../../api_config.dart';
+import 'api_config.dart';
+import 'auth_service.dart';
 
 // ---------------------------------------------------------------------------
 // Models
@@ -131,6 +132,7 @@ class JudgeAuthService {
   Future<void> logout() async {
     final token = JudgeAuthSession.current?.token;
     JudgeAuthSession.clear();
+    AuthSession.clear();
 
     if (token == null) return;
 

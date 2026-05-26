@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'auth_service.dart';
+import '../auth/auth_service.dart';
 
 /// Two-step forgot-password flow:
 ///   Step 1 — enter email → request reset token

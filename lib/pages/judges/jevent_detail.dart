@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../../api_config.dart';
-import 'judge_auth_service.dart';
+import '../auth/api_config.dart';
+import '../auth/judge_auth_service.dart';
 import 'judge_nav.dart';
 import 'jscore.dart';
 import 'jevent.dart';

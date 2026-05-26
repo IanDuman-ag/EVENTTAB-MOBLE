@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'auth_service.dart';
+import '../auth/auth_service.dart';
 import 'home.dart';
-import 'login.dart';
+import '../auth/login.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});

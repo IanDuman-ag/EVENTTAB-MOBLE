@@ -1,9 +1,10 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../../api_config.dart';
+import '../auth/api_config.dart';
 import 'jevent.dart';
-import 'judge_auth_service.dart';
+import 'jprofile.dart';
+import '../auth/judge_auth_service.dart';
 
 const _categoryMeta = {
   'academic':       (icon: Icons.school_rounded,          color: Color(0xFF2196F3)),
@@ -106,7 +107,12 @@ class _JudgeHomePageState extends State<JudgeHomePage> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: const Color(0xFF9F66FF), width: 2),
                     ),
-                    child: const Icon(Icons.person, color: Color(0xFF9F66FF), size: 20),
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const JudgeProfilePage())),
+                      child: const Icon(Icons.person, color: Color(0xFF9F66FF), size: 20),
+                    ),
                   ),
                 ],
               ),
@@ -198,7 +204,7 @@ class _JudgeHomePageState extends State<JudgeHomePage> {
                         ),
                       ),
                     ),
-                    // Event Categories Section â€” from API
+                    // Event Categories Section — from API
                     Padding(
                       padding: const EdgeInsets.all(20),
                       child: _categories.isEmpty
@@ -274,7 +280,7 @@ class _JudgeHomePageState extends State<JudgeHomePage> {
   }
 }
 
-// ─── Bottom nav item ─────────────────────────────────────
+// --- Bottom nav item -------------------------------------
 
 class _BottomNavItem extends StatelessWidget {
   const _BottomNavItem({
@@ -307,7 +313,7 @@ class _BottomNavItem extends StatelessWidget {
   }
 }
 
-// ─── Event category card ──────────────────────────────────
+// --- Event category card ----------------------------------
 
 class _EventCategoryCard extends StatelessWidget {
   const _EventCategoryCard({

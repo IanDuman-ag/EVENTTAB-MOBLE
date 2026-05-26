@@ -1,3 +1,6 @@
+import ipaddress
+from urllib.parse import urlparse
+
 from decouple import config
 from django.http import HttpResponse
 
@@ -40,7 +43,23 @@ class LocalDevelopmentCorsMiddleware:
             return False
         if origin in self.allowed_origins:
             return True
-        return self.allow_localhost and (
-            origin.startswith("http://localhost:")
-            or origin.startswith("http://127.0.0.1:")
-        )
+        if not self.allow_localhost:
+            return False
+
+        try:
+            hostname = urlparse(origin).hostname
+        except ValueError:
+            return False
+
+        if not hostname:
+            return False
+
+        if hostname in {"localhost", "127.0.0.1"}:
+            return True
+
+        try:
+            address = ipaddress.ip_address(hostname)
+        except ValueError:
+            return False
+
+        return address.is_private or address.is_loopback

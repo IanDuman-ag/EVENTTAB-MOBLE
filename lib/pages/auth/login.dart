@@ -1,15 +1,15 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../judges/jhome.dart';
 import 'judge_auth_service.dart';
+import 'api_config.dart';
 import 'auth_service.dart';
+import 'server_url_dialog.dart';
 import '../viewers/home.dart';
 
 // ─── palette ─────────────────────────────────────────────
 const _kBg      = Color(0xFF060A10);
 const _kCyan    = Color(0xFF00C5D9);
-const _kCyanLt  = Color(0xFF7CE1EF);
 const _kField   = Color(0xFF0E1520);
 const _kBorder  = Color(0xFF1C2A3A);
 const _kMuted   = Color(0xFF8B8D91);
@@ -175,6 +175,31 @@ class _LoginPageState extends State<LoginPage> {
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
                                 ),
+                              ),
+                              const SizedBox(height: 10),
+                              Column(
+                                children: [
+                                  Text(
+                                    'SERVER: $defaultApiBaseUrl',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: _kCyan,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () async {
+                                      final didSave =
+                                          await showServerUrlDialog(context);
+                                      if (didSave && mounted) {
+                                        setState(() {});
+                                      }
+                                    },
+                                    child: const Text('CHANGE SERVER'),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 32),
                               // ── Email / Username ──

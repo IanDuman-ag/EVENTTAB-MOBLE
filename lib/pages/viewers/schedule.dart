@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../auth/api_config.dart';
 import '../auth/auth_service.dart';
+import '../auth/server_url_dialog.dart';
 import 'bracket.dart';
 import 'home.dart';
 import 'matchdetails.dart';
@@ -16,7 +18,6 @@ const _kBg     = Color(0xFF0A0B0D);
 const _kCard   = Color(0xFF12141A);
 const _kBorder = Color(0xFF1E2128);
 const _kCyan   = Color(0xFF00C5D9);
-const _kCyanLt = Color(0xFF7CE1EF);
 const _kOrange = Color(0xFFFF7A18);
 const _kMuted  = Color(0xFF4A4C50);
 
@@ -73,8 +74,21 @@ class _SchedulePageState extends State<SchedulePage> {
         _isLoading = false;
       });
     } catch (e) {
-      setState(() { _error = e.toString(); _isLoading = false; });
+      setState(() {
+        _error = _buildLoadErrorMessage(e);
+        _isLoading = false;
+      });
     }
+  }
+
+  String _buildLoadErrorMessage(Object error) {
+    if (error is SocketException) {
+      return 'Could not reach the server at $defaultApiBaseUrl.\n'
+          'On a phone, use your computer IP and make sure Django is running on '
+          '0.0.0.0:8000.';
+    }
+
+    return error.toString();
   }
 
   List<Map<String, dynamic>> get _filtered {
@@ -152,9 +166,28 @@ class _SchedulePageState extends State<SchedulePage> {
       const SizedBox(height: 12),
       Text(_error!, style: const TextStyle(color: Colors.white70), textAlign: TextAlign.center),
       const SizedBox(height: 16),
-      OutlinedButton(onPressed: _load,
-          style: OutlinedButton.styleFrom(side: const BorderSide(color: _kCyan)),
-          child: const Text('RETRY', style: TextStyle(color: _kCyan))),
+      Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        alignment: WrapAlignment.center,
+        children: [
+          OutlinedButton(onPressed: _load,
+              style: OutlinedButton.styleFrom(side: const BorderSide(color: _kCyan)),
+              child: const Text('RETRY', style: TextStyle(color: _kCyan))),
+          OutlinedButton(
+            onPressed: () async {
+              final didSave = await showServerUrlDialog(context);
+              if (didSave && mounted) {
+                _load();
+              }
+            },
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: _kOrange),
+            ),
+            child: const Text('SERVER URL', style: TextStyle(color: _kOrange)),
+          ),
+        ],
+      ),
     ]),
   ));
 
@@ -341,7 +374,6 @@ class _FeaturedCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final teamA = match['team_a'] as Map<String, dynamic>? ?? {};
     final teamB = match['team_b'] as Map<String, dynamic>? ?? {};
-    final sport = (match['sport'] as String? ?? '').toUpperCase();
     final title = (match['title'] as String? ?? '').toUpperCase();
     final venue = match['venue'] as String? ?? '';
     final raw   = match['scheduled_time'] as String? ?? '';
@@ -457,7 +489,7 @@ class _MatchRow extends StatelessWidget {
       if (dt != null) {
         final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
         final m = dt.minute.toString().padLeft(2, '0');
-        timeStr = '$h:${m} ${dt.hour >= 12 ? 'AM' : 'PM'}';
+        timeStr = '$h:$m ${dt.hour >= 12 ? 'PM' : 'AM'}';
       }
     }
 

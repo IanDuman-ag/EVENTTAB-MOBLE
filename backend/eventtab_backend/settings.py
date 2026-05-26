@@ -9,9 +9,14 @@ SECRET_KEY = config("SECRET_KEY", default="django-insecure-change-me")
 DEBUG = config("DJANGO_DEBUG", default=True, cast=bool)
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
-    default="127.0.0.1,localhost",
+    default="127.0.0.1,10.102.147.188,localhost",
     cast=lambda value: [host.strip() for host in value.split(",") if host.strip()],
 )
+
+if DEBUG and "*" not in ALLOWED_HOSTS:
+    # Local development often serves the API over a LAN IP so phones/browsers
+    # on the same network can connect without extra host configuration.
+    ALLOWED_HOSTS.append("*")
 
 INSTALLED_APPS = [
     "django.contrib.admin",

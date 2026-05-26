@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../auth/api_config.dart';
 import '../auth/auth_service.dart';
-import '../auth/config.dart';
 import 'bracket.dart';
 import 'home.dart';
 import 'schedule.dart';
@@ -108,8 +108,6 @@ class _RankingsPageState extends State<RankingsPage>
   late AnimationController _fadeCtrl;
   late Animation<double>   _fadeAnim;
 
-  static const _baseUrl = defaultApiBaseUrl;
-
   @override
   void initState() {
     super.initState();
@@ -134,7 +132,7 @@ class _RankingsPageState extends State<RankingsPage>
     setState(() { _isLoading = true; _error = null; });
     try {
       final res = await http.get(
-          Uri.parse('$_baseUrl/api/events/categories/'), headers: _headers);
+          apiUri('/api/events/categories/'), headers: _headers);
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body) as List;
         setState(() {
@@ -152,7 +150,7 @@ class _RankingsPageState extends State<RankingsPage>
     setState(() { _isLoading = true; _error = null; _selectedCategory = cat; });
     try {
       final res = await http.get(
-          Uri.parse('$_baseUrl/api/events/categories/${cat.id}/events/'),
+          apiUri('/api/events/categories/${cat.id}/events/'),
           headers: _headers);
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body) as List;
@@ -174,7 +172,7 @@ class _RankingsPageState extends State<RankingsPage>
     });
     try {
       final res = await http.get(
-          Uri.parse('$_baseUrl/api/events/rankings-events/${event.id}/standings/'),
+          apiUri('/api/events/rankings-events/${event.id}/standings/'),
           headers: _headers);
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body) as List;

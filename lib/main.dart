@@ -2,11 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'pages/auth/login.dart';
 
-const String defaultApiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://127.0.0.1:8000',
-);
-
 void main() {
   runApp(const MyApp());
 }

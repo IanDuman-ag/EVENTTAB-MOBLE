@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../auth/api_config.dart';
 import '../auth/auth_service.dart';
+import '../auth/server_url_dialog.dart';
 import 'bracket.dart';
 import 'profile.dart';
 import 'rankings.dart';
@@ -35,52 +37,169 @@ class _HomePageState extends State<HomePage> {
       _errorMessage = null;
     });
 
-    try {
-      final token = AuthSession.current?.token;
+    final token = AuthSession.current?.token;
 
-      final headers = <String, String>{
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Token $token',
-      };
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Token $token',
+    };
 
-      // Fetch featured match
-      final featuredResponse = await http.get(
-        apiUri('/api/events/matches/featured/'),
-        headers: headers,
-      );
+    final results = await Future.wait<_LoadResult<dynamic>>([
+      _fetchJson('/api/events/matches/featured/', headers),
+      _fetchJson('/api/events/matches/upcoming/', headers),
+      _fetchJson('/api/events/activities/', headers),
+    ]);
 
-      // Fetch upcoming matches
-      final upcomingResponse = await http.get(
-        apiUri('/api/events/matches/upcoming/'),
-        headers: headers,
-      );
-
-      // Fetch activities
-      final activitiesResponse = await http.get(
-        apiUri('/api/events/activities/'),
-        headers: headers,
-      );
-
-      if (featuredResponse.statusCode == 200 &&
-          upcomingResponse.statusCode == 200 &&
-          activitiesResponse.statusCode == 200) {
-        setState(() {
-          _featuredMatch = featuredResponse.body != 'null'
-              ? jsonDecode(featuredResponse.body)
-              : null;
-          _upcomingMatches = jsonDecode(upcomingResponse.body);
-          _activities = jsonDecode(activitiesResponse.body);
-          _isLoading = false;
-        });
-      } else {
-        throw Exception('Failed to load data');
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to load data: $e';
-        _isLoading = false;
-      });
+    if (!mounted) {
+      return;
     }
+
+    final featuredResult = results[0];
+    final upcomingResult = results[1];
+    final activitiesResult = results[2];
+
+    final unavailableSections = <String>[
+      if (!featuredResult.isSuccess) 'featured match',
+      if (!upcomingResult.isSuccess) 'upcoming matches',
+      if (!activitiesResult.isSuccess) 'activity feed',
+    ];
+    final errors = results
+        .map((result) => result.error)
+        .whereType<String>()
+        .toList();
+
+    setState(() {
+      _featuredMatch = featuredResult.data is Map<String, dynamic>
+          ? Map<String, dynamic>.from(
+              featuredResult.data as Map<String, dynamic>,
+            )
+          : null;
+      _upcomingMatches = upcomingResult.data is List
+          ? List<dynamic>.from(upcomingResult.data as List)
+          : [];
+      _activities = activitiesResult.data is List
+          ? List<dynamic>.from(activitiesResult.data as List)
+          : [];
+      _errorMessage = unavailableSections.isEmpty
+          ? null
+          : _buildPartialLoadMessage(unavailableSections, errors);
+      _isLoading = false;
+    });
+  }
+
+  Future<_LoadResult<dynamic>> _fetchJson(
+    String path,
+    Map<String, String> headers,
+  ) async {
+    try {
+      final response = await http.get(apiUri(path), headers: headers);
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode} for $path');
+      }
+
+      final body = response.body.trim();
+      if (body.isEmpty || body == 'null') {
+        return const _LoadResult.success(null);
+      }
+
+      return _LoadResult.success(jsonDecode(body));
+    } catch (error) {
+      return _LoadResult.failure(_buildLoadErrorMessage(error));
+    }
+  }
+
+  String _buildPartialLoadMessage(
+    List<String> unavailableSections,
+    List<String> errors,
+  ) {
+    final sectionSummary = unavailableSections.join(', ');
+    final details = errors.isEmpty ? '' : '\n${errors.first}';
+    return 'Some home sections are unavailable right now: $sectionSummary.'
+        '\nYou can still use the rest of the viewer.$details';
+  }
+
+  String _buildLoadErrorMessage(Object error) {
+    if (error is SocketException) {
+      return 'Could not reach the server at $defaultApiBaseUrl.\n'
+          'On a phone, use your computer IP and make sure Django is running on '
+          '0.0.0.0:8000.';
+    }
+
+    if (error is http.ClientException) {
+      return 'The app could not fetch data from $defaultApiBaseUrl.\n'
+          'If you are running the viewer in a browser, make sure the backend '
+          'is running on the same machine or pass `API_BASE_URL`.';
+    }
+
+    return 'Failed to load data: $error';
+  }
+
+  Widget _buildInlineErrorBanner() {
+    if (_errorMessage == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF7A18).withValues(alpha: 0.12),
+        border: Border.all(color: const Color(0xFFFF7A18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.wifi_off_outlined, color: Color(0xFFFF7A18)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Viewer home is partially unavailable',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _errorMessage!,
+            style: const TextStyle(color: Colors.white70, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              OutlinedButton(
+                onPressed: _loadData,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFFF7A18)),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Retry'),
+              ),
+              OutlinedButton(
+                onPressed: () async {
+                  final didSave = await showServerUrlDialog(context);
+                  if (didSave && mounted) {
+                    _loadData();
+                  }
+                },
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF00C5D9)),
+                  foregroundColor: const Color(0xFF00C5D9),
+                ),
+                child: const Text('Server URL'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   void _navigateToPage(Widget page) {
@@ -96,26 +215,6 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: const Color(0xFF0A0B0D),
         body: const Center(
           child: CircularProgressIndicator(color: Color(0xFF00C5D9)),
-        ),
-      );
-    }
-
-    if (_errorMessage != null) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0A0B0D),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _errorMessage!,
-                style: const TextStyle(color: Colors.white),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(onPressed: _loadData, child: const Text('Retry')),
-            ],
-          ),
         ),
       );
     }
@@ -183,6 +282,7 @@ class _HomePageState extends State<HomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildInlineErrorBanner(),
                     // Featured Match Card
                     _buildFeaturedMatch(),
                     const SizedBox(height: 24),
@@ -752,4 +852,16 @@ class _HomePageState extends State<HomePage> {
     ];
     return months[month - 1];
   }
+}
+
+class _LoadResult<T> {
+  const _LoadResult._({this.data, this.error});
+
+  const _LoadResult.success(T? data) : this._(data: data);
+  const _LoadResult.failure(String error) : this._(error: error);
+
+  final T? data;
+  final String? error;
+
+  bool get isSuccess => error == null;
 }

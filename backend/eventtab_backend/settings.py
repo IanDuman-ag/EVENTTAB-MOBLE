@@ -9,7 +9,7 @@ SECRET_KEY = config("SECRET_KEY", default="django-insecure-change-me")
 DEBUG = config("DJANGO_DEBUG", default=True, cast=bool)
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
-    default="127.0.0.1,10.102.147.188,localhost",
+    default="127.0.0.1,10.102.147.188,0.0.0.0:8000localhost",
     cast=lambda value: [host.strip() for host in value.split(",") if host.strip()],
 )
 

@@ -33,7 +33,7 @@ Future<bool> showServerUrlDialog(BuildContext context) async {
                   autofocus: true,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: 'http://192.168.1.10:8000',
+                    hintText: 'http://110.102.147.188:8000',
                     hintStyle: const TextStyle(color: Colors.white38),
                     errorText: errorText,
                     filled: true,

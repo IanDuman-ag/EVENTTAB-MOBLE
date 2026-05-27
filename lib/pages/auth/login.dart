@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../judges/jhome.dart';
 import 'judge_auth_service.dart';
-import 'api_config.dart';
 import 'auth_service.dart';
-import 'server_url_dialog.dart';
 import '../viewers/home.dart';
 
 // ─── palette ─────────────────────────────────────────────
@@ -175,31 +173,6 @@ class _LoginPageState extends State<LoginPage> {
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
                                 ),
-                              ),
-                              const SizedBox(height: 10),
-                              Column(
-                                children: [
-                                  Text(
-                                    'SERVER: $defaultApiBaseUrl',
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      color: _kCyan,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () async {
-                                      final didSave =
-                                          await showServerUrlDialog(context);
-                                      if (didSave && mounted) {
-                                        setState(() {});
-                                      }
-                                    },
-                                    child: const Text('CHANGE SERVER'),
-                                  ),
-                                ],
                               ),
                               const SizedBox(height: 32),
                               // ── Email / Username ──

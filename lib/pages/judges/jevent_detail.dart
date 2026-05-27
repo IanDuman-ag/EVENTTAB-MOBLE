@@ -273,8 +273,34 @@ class _CriterionRow extends StatelessWidget {
   const _CriterionRow({required this.criterion});
   final Map<String, dynamic> criterion;
 
+  /// Safely extracts a plain string from a field that might contain
+  /// a raw JSON payload (e.g. {"type":"points","criteria":[...]}).
+  static String _safeString(dynamic raw, String fallback) {
+    if (raw == null) return '';
+    final s = raw.toString();
+    if (!s.trimLeft().startsWith('{') && !s.trimLeft().startsWith('[')) {
+      return s; // already a plain string
+    }
+    try {
+      final parsed = jsonDecode(s);
+      if (parsed is Map) {
+        // Try common name keys
+        return parsed['name']?.toString() ??
+            parsed['title']?.toString() ??
+            fallback;
+      }
+      if (parsed is List && parsed.isNotEmpty) {
+        return parsed.first['name']?.toString() ?? fallback;
+      }
+    } catch (_) {}
+    return fallback;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final name = _safeString(criterion['name'], 'Criterion');
+    final desc = _safeString(criterion['description'], '');
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
@@ -298,11 +324,12 @@ class _CriterionRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(criterion['name'] ?? '',
+                Text(name,
                     style: const TextStyle(color: Colors.white,
                         fontSize: 14, fontWeight: FontWeight.w700)),
-                Text(criterion['description'] ?? '',
-                    style: const TextStyle(color: _kMuted, fontSize: 11)),
+                if (desc.isNotEmpty)
+                  Text(desc,
+                      style: const TextStyle(color: _kMuted, fontSize: 11)),
               ],
             ),
           ),

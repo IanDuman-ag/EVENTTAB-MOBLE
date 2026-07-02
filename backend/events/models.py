@@ -193,3 +193,73 @@ class JudgeScore(models.Model):
 
     class Meta:
         unique_together = ['judge', 'candidate', 'criterion']
+
+
+class ScorerSubmission(models.Model):
+    """Score results submitted by a scorer — pending until admin approves."""
+
+    APPROVAL_CHOICES = [
+        ("pending", "Pending"),
+        ("approved", "Approved"),
+    ]
+
+    match = models.ForeignKey(
+        Match,
+        on_delete=models.CASCADE,
+        related_name="scorer_submissions",
+    )
+    scorer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="scorer_submissions",
+    )
+    score_a = models.IntegerField()
+    score_b = models.IntegerField()
+    match_status = models.CharField(max_length=20, default="live")
+    approval_status = models.CharField(
+        max_length=20,
+        choices=APPROVAL_CHOICES,
+        default="pending",
+    )
+    submitted_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return (
+            f"{self.scorer.username} — {self.match.title} "
+            f"({self.approval_status})"
+        )
+
+    class Meta:
+        ordering = ["-submitted_at"]
+        unique_together = ["match", "scorer"]
+
+
+class BracketScorerSubmission(models.Model):
+    """Bracket match scores submitted by a scorer."""
+
+    APPROVAL_CHOICES = [
+        ("pending", "Pending"),
+        ("approved", "Approved"),
+        ("returned", "Returned"),
+    ]
+
+    bracket_match_id = models.IntegerField()
+    event_id = models.IntegerField(null=True, blank=True)
+    scorer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="bracket_scorer_submissions",
+    )
+    score_a = models.IntegerField()
+    score_b = models.IntegerField()
+    match_status = models.CharField(max_length=20, default="live")
+    approval_status = models.CharField(
+        max_length=20,
+        choices=APPROVAL_CHOICES,
+        default="pending",
+    )
+    submitted_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-submitted_at"]
+        unique_together = ["bracket_match_id", "scorer"]

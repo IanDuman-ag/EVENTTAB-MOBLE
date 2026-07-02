@@ -1,257 +1,310 @@
 import 'package:flutter/material.dart';
 
-import '../auth/judge_auth_service.dart';
-import '../auth/login.dart';
+import 'judge_api.dart';
+import 'judge_theme.dart';
+import 'judge_widgets.dart';
 
-// ─── palette ─────────────────────────────────────────────
-const _kBg     = Color(0xFF0B0B12);
-const _kCard   = Color(0xFF17131F);
-const _kBorder = Color(0xFF2A2433);
-const _kPurple = Color(0xFF9F66FF);
-const _kMuted  = Color(0xFF7F7890);
-
-class JudgeProfilePage extends StatefulWidget {
+class JudgeProfilePage extends StatelessWidget {
   const JudgeProfilePage({super.key});
 
   @override
-  State<JudgeProfilePage> createState() => _JudgeProfilePageState();
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: judgeBg,
+      body: SafeArea(child: JudgeProfileBody()),
+    );
+  }
 }
 
-class _JudgeProfilePageState extends State<JudgeProfilePage> {
-  bool _notificationsEnabled = true;
-  bool _isLoggingOut = false;
+class JudgeProfileBody extends StatefulWidget {
+  const JudgeProfileBody({super.key, this.onLogout});
 
-  // ── Derived from session ──────────────────────────────
+  final VoidCallback? onLogout;
 
-  String get _displayName {
-    final username = JudgeAuthSession.current?.username.trim() ?? '';
-    if (username.isEmpty) return 'Judge';
-    return username
-        .split(RegExp(r'\s+'))
-        .where((p) => p.isNotEmpty)
-        .map((p) => '${p[0].toUpperCase()}${p.substring(1).toLowerCase()}')
-        .join(' ');
+  @override
+  State<JudgeProfileBody> createState() => _JudgeProfileBodyState();
+}
+
+class _JudgeProfileBodyState extends State<JudgeProfileBody> {
+  Map<String, dynamic>? _profile;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
   }
 
-  String get _email =>
-      JudgeAuthSession.current?.email.trim() ?? '';
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    final data = await JudgeApi.getJson('/api/events/judge/profile/');
+    if (!mounted) return;
+
+    if (data != null) {
+      setState(() {
+        _profile = data;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _error = 'Could not load profile.';
+        _isLoading = false;
+      });
+    }
+  }
 
   String get _initials {
-    final parts = _displayName
-        .split(RegExp(r'\s+'))
-        .where((p) => p.isNotEmpty)
-        .toList();
+    final name = _profile?['display_name'] as String? ?? 'J';
+    final parts = name.split(' ').where((p) => p.isNotEmpty).toList();
     if (parts.isEmpty) return 'J';
     if (parts.length == 1) return parts.first[0].toUpperCase();
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
   }
 
-  // ── Logout ────────────────────────────────────────────
-
-  Future<void> _handleLogout() async {
-    if (_isLoggingOut) return;
-    setState(() => _isLoggingOut = true);
-
-    await judgeAuthService.logout();
-
-    if (!mounted) return;
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-      (route) => false,
-    );
-  }
-
-  // ── Build ─────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _kBg,
-      body: SafeArea(
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: judgeCyan),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // ── App bar ──
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              decoration: const BoxDecoration(
-                color: _kCard,
-                border: Border(bottom: BorderSide(color: _kBorder)),
-              ),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).maybePop(),
-                    child: const Icon(Icons.arrow_back_ios_new_rounded,
-                        color: _kPurple, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text('Profile',
-                      style: TextStyle(color: Colors.white, fontSize: 18,
-                          fontWeight: FontWeight.w800)),
-                ],
-              ),
-            ),
-            // ── Content ──
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── Hero card ──
-                    _HeroCard(initials: _initials, displayName: _displayName),
-                    const SizedBox(height: 36),
-                    // ── Account section ──
-                    _SectionLabel('ACCOUNT'),
-                    const SizedBox(height: 12),
-                    _InfoRow(
-                      icon: Icons.person_outline_rounded,
-                      title: 'Username',
-                      subtitle: JudgeAuthSession.current?.username ?? '—',
-                    ),
-                    const SizedBox(height: 2),
-                    _InfoRow(
-                      icon: Icons.mail_outline_rounded,
-                      title: 'Email Address',
-                      subtitle: _email.isEmpty ? '—' : _email,
-                    ),
-                    const SizedBox(height: 2),
-                    _InfoRow(
-                      icon: Icons.gavel_rounded,
-                      title: 'Role',
-                      subtitle: 'Judge',
-                      accent: _kPurple,
-                    ),
-                    const SizedBox(height: 36),
-                    // ── Preferences section ──
-                    _SectionLabel('PREFERENCES'),
-                    const SizedBox(height: 12),
-                    _NotifRow(
-                      enabled: _notificationsEnabled,
-                      onChanged: (v) =>
-                          setState(() => _notificationsEnabled = v),
-                    ),
-                    const SizedBox(height: 2),
-                    _ThemeRow(),
-                    const SizedBox(height: 36),
-                    // ── Logout ──
-                    _LogoutButton(
-                        isBusy: _isLoggingOut, onPressed: _handleLogout),
-                  ],
-                ),
-              ),
-            ),
+            Text(_error!, style: const TextStyle(color: judgeMuted)),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: _load, child: const Text('Retry')),
           ],
         ),
-      ),
-    );
-  }
-}
+      );
+    }
 
-// ─── Hero card ────────────────────────────────────────────
+    final p = _profile!;
+    final stats = p['stats'] as Map<String, dynamic>? ?? {};
+    final isActive = (p['status'] as String?) == 'ACTIVE';
 
-class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.initials, required this.displayName});
-  final String initials, displayName;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _kBorder),
-        boxShadow: [
-          BoxShadow(
-            color: _kPurple.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
+    return RefreshIndicator(
+      color: judgeCyan,
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(20),
         children: [
-          // Avatar
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 68, height: 68,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF2A1050), Color(0xFF1A102D)],
+          const Text(
+            'My Profile',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: judgeCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: judgeBorder),
+            ),
+            child: Column(
+              children: [
+                Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 44,
+                      backgroundColor: judgePurple.withValues(alpha: 0.2),
+                      child: Text(
+                        _initials,
+                        style: const TextStyle(
+                          color: judgePurple,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: judgeCyan,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.camera_alt_rounded,
+                            size: 14, color: judgeBg),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  p['display_name'] as String? ?? '',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
                   ),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: _kPurple, width: 2),
                 ),
-                child: Center(
-                  child: Text(initials,
-                      style: const TextStyle(
-                        color: _kPurple,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1,
-                      )),
-                ),
-              ),
-              Positioned(
-                right: -6, bottom: -6,
-                child: Container(
-                  width: 22, height: 22,
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _kPurple,
-                    borderRadius: BorderRadius.circular(6),
+                    color: judgePurple.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Icon(Icons.edit_outlined,
-                      color: Colors.white, size: 13),
+                  child: Text(
+                    p['role'] as String? ?? 'JUDGE',
+                    style: const TextStyle(
+                      color: judgePurple,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
                 ),
+                const SizedBox(height: 20),
+                _ProfileRow(label: 'Judge ID', value: p['judge_id'] as String?),
+                _ProfileRow(
+                  label: 'Role',
+                  value: p['role_detail'] as String? ?? 'Judge',
+                ),
+                _ProfileRow(
+                  label: 'Status',
+                  valueWidget: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: (isActive ? judgeGreen : judgeMuted)
+                          .withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      p['status'] as String? ?? 'ACTIVE',
+                      style: TextStyle(
+                        color: isActive ? judgeGreen : judgeMuted,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+                _ProfileRow(
+                  label: 'Member Since',
+                  value: p['member_since_display'] as String? ?? '—',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'OVERVIEW',
+            style: TextStyle(
+              color: judgeCyan,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _OverviewTile(
+                icon: Icons.assignment_rounded,
+                value: '${stats['assignments'] ?? 0}',
+                label: 'Assignments',
+                sublabel: 'Total Assigned',
+              ),
+              const SizedBox(width: 10),
+              _OverviewTile(
+                icon: Icons.check_circle_outline_rounded,
+                value: '${stats['completed'] ?? 0}',
+                label: 'Completed',
+                sublabel: 'Scores Submitted',
               ),
             ],
           ),
-          const SizedBox(width: 18),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _OverviewTile(
+                icon: Icons.schedule_rounded,
+                value: '${stats['pending'] ?? 0}',
+                label: 'Pending',
+                sublabel: 'Under Review',
+              ),
+              const SizedBox(width: 10),
+              _OverviewTile(
+                icon: Icons.emoji_events_rounded,
+                value: '${stats['events_this_month'] ?? 0}',
+                label: 'Events',
+                sublabel: 'This Month',
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton.icon(
+              onPressed: widget.onLogout,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: judgeRed,
+                side: const BorderSide(color: judgeRed),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text(
+                'Log Out',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileRow extends StatelessWidget {
+  const _ProfileRow({
+    required this.label,
+    this.value,
+    this.valueWidget,
+  });
+
+  final String label;
+  final String? value;
+  final Widget? valueWidget;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(label, style: const TextStyle(color: judgeMuted)),
+          ),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(displayName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    )),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _kPurple.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                        color: _kPurple.withValues(alpha: 0.4)),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.gavel_rounded,
-                          color: _kPurple, size: 12),
-                      SizedBox(width: 5),
-                      Text('JUDGE',
-                          style: TextStyle(
-                            color: _kPurple,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1,
-                          )),
-                    ],
+            child: valueWidget ??
+                Text(
+                  value ?? '—',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ],
-            ),
           ),
         ],
       ),
@@ -259,210 +312,52 @@ class _HeroCard extends StatelessWidget {
   }
 }
 
-// ─── Section label ────────────────────────────────────────
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.label);
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(label,
-        style: const TextStyle(
-          color: _kMuted,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.7,
-        ));
-  }
-}
-
-// ─── Info row ─────────────────────────────────────────────
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
+class _OverviewTile extends StatelessWidget {
+  const _OverviewTile({
     required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.accent = _kPurple,
+    required this.value,
+    required this.label,
+    required this.sublabel,
   });
+
   final IconData icon;
-  final String title, subtitle;
-  final Color accent;
+  final String value;
+  final String label;
+  final String sublabel;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: _kCard,
-        border: Border.all(color: _kBorder),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: accent, size: 18),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    )),
-                const SizedBox(height: 3),
-                Text(subtitle,
-                    style: const TextStyle(
-                      color: _kMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    )),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right, color: _kMuted, size: 18),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Notification row ─────────────────────────────────────
-
-class _NotifRow extends StatelessWidget {
-  const _NotifRow({required this.enabled, required this.onChanged});
-  final bool enabled;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: _kCard,
-        border: Border.all(color: _kBorder),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.notifications_active_outlined,
-              color: _kPurple, size: 18),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Notifications',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    )),
-                SizedBox(height: 3),
-                Text('Event assignments and score reminders.',
-                    style: TextStyle(
-                      color: _kMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    )),
-              ],
-            ),
-          ),
-          Switch(
-            value: enabled,
-            onChanged: onChanged,
-            activeThumbColor: Colors.white,
-            activeTrackColor: _kPurple,
-            inactiveThumbColor: const Color(0xFF7B7F85),
-            inactiveTrackColor: const Color(0xFF2A2D34),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Theme row ────────────────────────────────────────────
-
-class _ThemeRow extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: _kCard,
-        border: Border.all(color: _kBorder),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.dark_mode_outlined, color: _kPurple, size: 18),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Text('Theme',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                )),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: _kPurple.withValues(alpha: 0.12),
-              border: Border.all(color: _kPurple.withValues(alpha: 0.4)),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: const Text('DARK',
-                style: TextStyle(
-                  color: _kPurple,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.8,
-                )),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Logout button ────────────────────────────────────────
-
-class _LogoutButton extends StatelessWidget {
-  const _LogoutButton({required this.isBusy, required this.onPressed});
-  final bool isBusy;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: isBusy ? null : onPressed,
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          side: const BorderSide(color: Color(0xFF5A241A)),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
-          foregroundColor: const Color(0xFFF16A52),
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: judgeCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: judgeBorder),
         ),
-        icon: isBusy
-            ? const SizedBox(
-                width: 14, height: 14,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Color(0xFFF16A52)))
-            : const Icon(Icons.logout_rounded, size: 16),
-        label: Text(
-          isBusy ? 'LOGGING OUT...' : 'LOG OUT',
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2.5,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: judgeCyan, size: 20),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+            Text(sublabel, style: const TextStyle(color: judgeMuted, fontSize: 10)),
+          ],
         ),
       ),
     );

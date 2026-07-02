@@ -6,6 +6,24 @@ from .views import TeamViewSet, MatchViewSet, ActivityViewSet, JudgingEventViewS
 
 # Judge-specific endpoints (categories, event detail with criteria/candidates, scoring)
 from .judging_views import EventCategoryViewSet, JudgingEventViewSet, judge_notifications
+from .judge_views import (
+    judge_assignment_detail,
+    judge_assignments,
+    judge_dashboard,
+    judge_profile,
+    judge_score_history,
+)
+from .scorer_views import (
+    scorer_assignments,
+    scorer_bracket,
+    scorer_dashboard,
+    scorer_history,
+    scorer_matches,
+    scorer_match_detail,
+    scorer_profile,
+    scorer_update_bracket_score,
+    scorer_update_score,
+)
 
 router = DefaultRouter()
 router.register(r'teams', TeamViewSet)
@@ -18,4 +36,30 @@ router.register(r'rankings-events', RankingsEventViewSet, basename='rankings-eve
 urlpatterns = [
     path('', include(router.urls)),
     path('judge-notifications/', judge_notifications, name='judge_notifications'),
+    path('judge/dashboard/', judge_dashboard, name='judge_dashboard'),
+    path('judge/assignments/', judge_assignments, name='judge_assignments'),
+    path(
+        'judge/assignments/<int:judging_event_id>/',
+        judge_assignment_detail,
+        name='judge_assignment_detail',
+    ),
+    path('judge/score-history/', judge_score_history, name='judge_score_history'),
+    path('judge/profile/', judge_profile, name='judge_profile'),
+    path('scorer/dashboard/', scorer_dashboard, name='scorer_dashboard'),
+    path('scorer/assignments/', scorer_assignments, name='scorer_assignments'),
+    path('scorer/profile/', scorer_profile, name='scorer_profile'),
+    path('scorer/bracket/', scorer_bracket, name='scorer_bracket'),
+    path('scorer/history/', scorer_history, name='scorer_history'),
+    path('scorer/matches/', scorer_matches, name='scorer_matches'),
+    path('scorer/matches/<int:match_id>/score/', scorer_update_score, name='scorer_update_score'),
+    path(
+        'scorer/bracket/matches/<int:match_id>/',
+        scorer_match_detail,
+        name='scorer_match_detail',
+    ),
+    path(
+        'scorer/bracket/matches/<int:match_id>/score/',
+        scorer_update_bracket_score,
+        name='scorer_update_bracket_score',
+    ),
 ]

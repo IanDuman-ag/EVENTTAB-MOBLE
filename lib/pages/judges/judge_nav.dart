@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'jevent.dart';
-import 'jhome.dart';
+import 'judge_shell.dart';
 
 /// Shared judge bottom-nav navigation (avoids jhome <-> jevent circular imports).
 class JudgeNav {

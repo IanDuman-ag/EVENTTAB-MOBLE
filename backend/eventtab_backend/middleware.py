@@ -15,7 +15,7 @@ class LocalDevelopmentCorsMiddleware:
     In production, replace this with django-cors-headers.
     """
 
-    _ALLOWED_METHODS = "GET, POST, OPTIONS"
+    _ALLOWED_METHODS = "GET, POST, PATCH, OPTIONS"
     _ALLOWED_HEADERS = "Content-Type, Authorization"
 
     def __init__(self, get_response):

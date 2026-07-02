@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 /// Override with:
 /// `--dart-define=API_BASE_URL=http://<your-host>:8000`
 const String _apiBaseUrlOverride = String.fromEnvironment('API_BASE_URL');
-const String _defaultLocalNetworkApiBaseUrl = 'http://10.250.163.188:8000';
+const String _defaultLocalNetworkApiBaseUrl = 'http://10.92.161.188:8000';
 
 final String _initialApiBaseUrl = _resolveDefaultApiBaseUrl();
 String _runtimeApiBaseUrl = _initialApiBaseUrl;

@@ -5,6 +5,8 @@ from django.db import connection
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
+from .access_code_auth import resolve_access_code_login
+
 User = get_user_model()
 
 
@@ -166,6 +168,19 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("This account has been disabled.")
 
         attrs["user"] = user
+        return attrs
+
+
+class AccessCodeLoginSerializer(serializers.Serializer):
+    """Validates an admin-issued access code."""
+
+    access_code = serializers.CharField()
+
+    def validate(self, attrs):
+        user, role, label = resolve_access_code_login(attrs["access_code"])
+        attrs["user"] = user
+        attrs["role"] = role
+        attrs["label"] = label
         return attrs
 
 

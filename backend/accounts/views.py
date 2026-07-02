@@ -9,7 +9,13 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from random import randint
 
-from .serializers import ForgotPasswordSerializer, LoginSerializer, RegisterSerializer
+from .models import AccessCode
+from .serializers import (
+    AccessCodeLoginSerializer,
+    ForgotPasswordSerializer,
+    LoginSerializer,
+    RegisterSerializer,
+)
 
 User = get_user_model()
 
@@ -80,6 +86,42 @@ def login(request):
         {
             "token": token.key,
             "role": "judge" if is_judge else "viewer",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+            },
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Access code login
+# ---------------------------------------------------------------------------
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def access_code_login(request):
+    """
+    POST /api/auth/access-code/
+    Body: { access_code }
+    Returns: { token, role, user, label }
+    """
+    serializer = AccessCodeLoginSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    user = serializer.validated_data["user"]
+    role = serializer.validated_data["role"]
+    label = serializer.validated_data["label"]
+    token, _ = Token.objects.get_or_create(user=user)
+
+    return Response(
+        {
+            "token": token.key,
+            "role": role,
+            "label": label,
             "user": {
                 "id": user.id,
                 "username": user.username,

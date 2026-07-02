@@ -16,16 +16,19 @@ class AuthUser {
     required this.email,
     required this.token,
     required this.role,
+    this.label,
   });
 
   final int id;
   final String username;
   final String email;
   final String token;
-  /// 'judge' or 'viewer'
+  /// 'judge', 'scorer', or 'viewer'
   final String role;
+  final String? label;
 
   bool get isJudge => role == 'judge';
+  bool get isScorer => role == 'scorer';
 
   factory AuthUser.fromJson(Map<String, dynamic> json, String token, String role) {
     return AuthUser(
@@ -34,6 +37,7 @@ class AuthUser {
       email: json['email'] as String,
       token: token,
       role: role,
+      label: json['label'] as String?,
     );
   }
 }
@@ -164,6 +168,51 @@ class AuthService {
       body['role'] as String? ?? 'viewer',
     );
     AuthSession.set(user);
+    return user;
+  }
+
+  // ---- access code login --------------------------------------------------
+
+  /// Authenticates with an admin-issued access code and stores the session.
+  Future<AuthUser> loginWithAccessCode({required String accessCode}) async {
+    final normalizedCode =
+        accessCode.trim().replaceAll(RegExp(r'[\s-]'), '').toUpperCase();
+    if (normalizedCode.isEmpty) {
+      throw const AuthException('Access code is required.');
+    }
+
+    final response = await _client
+        .post(
+          apiUri('/api/auth/access-code/'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'access_code': normalizedCode}),
+        )
+        .timeout(_timeout);
+
+    final body = _decodeBody(response);
+
+    if (response.statusCode != 200) {
+      throw AuthException(_parseError(body));
+    }
+
+    final role = body['role'] as String? ?? '';
+    if (role != 'judge' && role != 'scorer') {
+      throw const AuthException('Invalid access code.');
+    }
+
+    final userJson = Map<String, dynamic>.from(
+      body['user'] as Map<String, dynamic>,
+    );
+    final label = body['label'];
+    if (label is String && label.isNotEmpty) {
+      userJson['label'] = label;
+    }
+
+    final user = AuthUser.fromJson(
+      userJson,
+      body['token'] as String,
+      role,
+    );
     return user;
   }
 

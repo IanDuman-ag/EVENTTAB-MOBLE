@@ -20,6 +20,7 @@ from django.utils.html import format_html
 from .models import (
     Team, Match, Activity,
     EventCategory, JudgingEvent, Criterion, Candidate, JudgeScore,
+    ScorerSubmission,
 )
 
 
@@ -261,3 +262,19 @@ class JudgeScoreAdmin(admin.ModelAdmin):
     list_filter     = ['is_locked', 'candidate__event']
     readonly_fields = ['verification_id', 'submitted_at']
     search_fields   = ['judge__username', 'candidate__name']
+
+
+@admin.register(ScorerSubmission)
+class ScorerSubmissionAdmin(admin.ModelAdmin):
+    list_display = [
+        'match',
+        'scorer',
+        'score_a',
+        'score_b',
+        'match_status',
+        'approval_status',
+        'submitted_at',
+    ]
+    list_filter = ['approval_status', 'match_status', 'match__sport']
+    search_fields = ['scorer__username', 'match__title']
+    list_editable = ['approval_status']

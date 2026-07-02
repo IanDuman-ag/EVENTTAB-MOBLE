@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../judges/jhome.dart';
+import '../judges/judge_shell.dart';
+import 'api_config.dart';
 import 'judge_auth_service.dart';
 import 'auth_service.dart';
+import 'scorer_auth_service.dart';
+import 'server_url_dialog.dart';
+import '../scorer/scorer_shell.dart';
 import '../viewers/home.dart';
 
 // ─── palette ─────────────────────────────────────────────
@@ -12,9 +16,9 @@ const _kField   = Color(0xFF0E1520);
 const _kBorder  = Color(0xFF1C2A3A);
 const _kMuted   = Color(0xFF8B8D91);
 
-/// Single login page for all roles.
-/// Backend returns { role: "judge" | "viewer" } — judges go to JudgeHomePage,
-/// viewers go to HomePage. "Continue as Guest" skips auth and goes to HomePage.
+/// Users enter an admin-issued access code from the backend.
+/// Judges go to `lib/pages/judges/`, scorers go to `lib/pages/scorer/`.
+/// "Continue as Guest" skips auth and goes to HomePage.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, this.onLogin});
   final VoidCallback? onLogin;
@@ -24,72 +28,99 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _accountCtrl  = TextEditingController();
-  final _passwordCtrl = TextEditingController();
+  final _accessCodeCtrl = TextEditingController();
 
-  bool    _obscurePassword = true;
-  bool    _rememberMe      = false;
   bool    _isLoading       = false;
   String? _errorMessage;
 
   @override
   void dispose() {
-    _accountCtrl.dispose();
-    _passwordCtrl.dispose();
+    _accessCodeCtrl.dispose();
     super.dispose();
   }
 
   // ── Login ─────────────────────────────────────────────
 
   Future<void> _handleLogin() async {
-    final identifier = _accountCtrl.text.trim();
-    final password   = _passwordCtrl.text;
+    final accessCode = _accessCodeCtrl.text
+        .trim()
+        .replaceAll(RegExp(r'[\s-]'), '')
+        .toUpperCase();
 
-    if (identifier.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = 'Enter your email or username and password.');
+    if (accessCode.isEmpty) {
+      setState(() => _errorMessage = 'Enter your access code.');
       return;
     }
 
     setState(() { _isLoading = true; _errorMessage = null; });
 
     try {
-      final user = await authService.login(
-          identifier: identifier, password: password);
+      final user = await authService.loginWithAccessCode(accessCode: accessCode);
 
       if (!mounted) return;
 
-      if (user.isJudge) {
-        JudgeAuthSession.set(JudgeUser(
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          token: user.token,
-        ));
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            settings: const RouteSettings(name: '/judge/home'),
-            builder: (_) => const JudgeHomePage(),
-          ),
-        );
-      } else if (widget.onLogin != null) {
-        widget.onLogin!();
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
+      AuthSession.clear();
+      JudgeAuthSession.clear();
+      ScorerAuthSession.clear();
+
+      switch (user.role) {
+        case 'judge':
+          JudgeAuthSession.set(JudgeUser(
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            token: user.token,
+          ));
+          AuthSession.set(user);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              settings: const RouteSettings(name: '/judge/home'),
+              builder: (_) => const JudgeHomePage(),
+            ),
+          );
+        case 'scorer':
+          ScorerAuthSession.set(ScorerUser(
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            token: user.token,
+            label: user.label,
+          ));
+          AuthSession.set(user);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              settings: const RouteSettings(name: '/scorer/home'),
+              builder: (_) => const ScorerShell(),
+            ),
+          );
+        default:
+          AuthSession.clear();
+          setState(() => _errorMessage =
+              'This access code is not valid for judge or scorer login.');
       }
     } on AuthException catch (e) {
       setState(() => _errorMessage = e.message);
     } catch (_) {
-      setState(() => _errorMessage = 'Could not reach the server. Try again.');
+      setState(() => _errorMessage =
+          'Could not reach the server at $defaultApiBaseUrl.\n'
+          'Start Django (python manage.py runserver 0.0.0.0:8000) '
+          'or tap the server icon below to set the API URL.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _configureServer() async {
+    final saved = await showServerUrlDialog(context);
+    if (saved && mounted) {
+      setState(() => _errorMessage = null);
     }
   }
 
   void _continueAsGuest() {
     AuthSession.clear();
     JudgeAuthSession.clear();
+    ScorerAuthSession.clear();
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const HomePage()),
     );
@@ -166,7 +197,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               const SizedBox(height: 6),
                               const Text(
-                                'Sign in to continue to your account',
+                                'Enter your access code from EventTab Admin',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: _kMuted,
@@ -175,81 +206,41 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                               const SizedBox(height: 32),
-                              // ── Email / Username ──
-                              const _FieldLabel('EMAIL OR USERNAME'),
+                              // ── Access code ──
+                              const _FieldLabel('ACCESS CODE'),
                               const SizedBox(height: 8),
                               _RoundedField(
-                                controller: _accountCtrl,
-                                hint: 'Enter your email or username',
-                                prefixIcon: Icons.person_outline_rounded,
-                                keyboardType: TextInputType.emailAddress,
-                              ),
-                              const SizedBox(height: 20),
-                              // ── Password ──
-                              const _FieldLabel('PASSWORD'),
-                              const SizedBox(height: 8),
-                              _RoundedField(
-                                controller: _passwordCtrl,
-                                hint: 'Enter your password',
-                                prefixIcon: Icons.lock_outline_rounded,
-                                obscureText: _obscurePassword,
-                                suffixIcon: _obscurePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                                onSuffixTap: () => setState(
-                                    () => _obscurePassword = !_obscurePassword),
+                                controller: _accessCodeCtrl,
+                                hint: 'Enter your access code',
+                                prefixIcon: Icons.vpn_key_outlined,
+                                textCapitalization: TextCapitalization.characters,
+                                onSubmitted: (_) => _handleLogin(),
                               ),
                               // ── Error ──
                               if (_errorMessage != null) ...[
                                 const SizedBox(height: 12),
                                 Text(
                                   _errorMessage!,
+                                  textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     color: Color(0xFFFF5252),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
+                                    height: 1.4,
                                   ),
                                 ),
                               ],
-                              const SizedBox(height: 16),
-                              // ── Remember me ──
-                              GestureDetector(
-                                onTap: () =>
-                                    setState(() => _rememberMe = !_rememberMe),
-                                behavior: HitTestBehavior.opaque,
-                                child: Row(
-                                  children: [
-                                    AnimatedContainer(
-                                      duration: const Duration(milliseconds: 150),
-                                      width: 20, height: 20,
-                                      decoration: BoxDecoration(
-                                        color: _rememberMe
-                                            ? _kCyan
-                                            : Colors.transparent,
-                                        border: Border.all(
-                                          color: _rememberMe
-                                              ? _kCyan
-                                              : const Color(0xFF4A5568),
-                                          width: 2,
-                                        ),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: _rememberMe
-                                          ? const Icon(Icons.check,
-                                              size: 13,
-                                              color: Color(0xFF060A10))
-                                          : null,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Text(
-                                      'Remember me',
-                                      style: TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
+                              const SizedBox(height: 12),
+                              TextButton.icon(
+                                onPressed: _isLoading ? null : _configureServer,
+                                icon: const Icon(Icons.dns_outlined,
+                                    size: 18, color: _kMuted),
+                                label: Text(
+                                  'Server: $defaultApiBaseUrl',
+                                  style: const TextStyle(
+                                    color: _kMuted,
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 28),
@@ -398,91 +389,14 @@ class _Logo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: SizedBox(
-        width: 100, height: 100,
-        child: CustomPaint(painter: _LogoPainter()),
+      child: Image.asset(
+        'assets/Finallogo.png',
+        width: 120,
+        height: 120,
+        fit: BoxFit.contain,
       ),
     );
   }
-}
-
-class _LogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final r = size.shortestSide / 2;
-
-    // Outer glow
-    canvas.drawCircle(center, r,
-        Paint()
-          ..shader = RadialGradient(colors: [
-            const Color(0xFF13C8FF).withValues(alpha: 0.35),
-            Colors.transparent,
-          ]).createShader(Rect.fromCircle(center: center, radius: r)));
-
-    // Ring
-    canvas.drawCircle(center, r * 0.74,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5
-          ..shader = SweepGradient(colors: const [
-            Color(0xFF1176FF), Color(0xFF7EF0FF),
-            Color(0xFF112B76), Color(0xFF1176FF),
-          ]).createShader(Rect.fromCircle(center: center, radius: r * 0.74)));
-
-    // Inner fill
-    canvas.drawCircle(center, r * 0.64,
-        Paint()
-          ..shader = const LinearGradient(
-            begin: Alignment.topLeft, end: Alignment.bottomRight,
-            colors: [Color(0xFF06336B), Color(0xFF0B0B0D), Color(0xFF041E45)],
-          ).createShader(Rect.fromCircle(center: center, radius: r * 0.64)));
-
-    // Wing shape
-    final wing = Paint()
-      ..shader = const LinearGradient(
-              colors: [Color(0xFF00D9FF), Color(0xFF0A53CC)])
-          .createShader(Rect.fromLTWH(
-              size.width * 0.15, size.height * 0.35,
-              size.width * 0.45, size.height * 0.35));
-    canvas.drawPath(
-      Path()
-        ..moveTo(size.width * 0.27, size.height * 0.38)
-        ..lineTo(size.width * 0.60, size.height * 0.38)
-        ..lineTo(size.width * 0.52, size.height * 0.47)
-        ..lineTo(size.width * 0.29, size.height * 0.47)
-        ..lineTo(size.width * 0.22, size.height * 0.58)
-        ..lineTo(size.width * 0.55, size.height * 0.58)
-        ..lineTo(size.width * 0.47, size.height * 0.68)
-        ..lineTo(size.width * 0.18, size.height * 0.68)
-        ..close(),
-      wing,
-    );
-
-    // Slash shape
-    final slash = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topCenter, end: Alignment.bottomCenter,
-        colors: [Color(0xFFFFFFFF), Color(0xFF9FA8B8), Color(0xFF18224A)],
-      ).createShader(Rect.fromLTWH(
-          size.width * 0.50, size.height * 0.30,
-          size.width * 0.36, size.height * 0.44));
-    canvas.drawPath(
-      Path()
-        ..moveTo(size.width * 0.58, size.height * 0.32)
-        ..lineTo(size.width * 0.86, size.height * 0.32)
-        ..lineTo(size.width * 0.74, size.height * 0.42)
-        ..lineTo(size.width * 0.68, size.height * 0.72)
-        ..lineTo(size.width * 0.53, size.height * 0.72)
-        ..lineTo(size.width * 0.63, size.height * 0.43)
-        ..lineTo(size.width * 0.50, size.height * 0.43)
-        ..close(),
-      slash,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ─── Field label ──────────────────────────────────────────
@@ -510,26 +424,22 @@ class _RoundedField extends StatelessWidget {
     required this.controller,
     required this.hint,
     required this.prefixIcon,
-    this.keyboardType,
-    this.obscureText = false,
-    this.suffixIcon,
-    this.onSuffixTap,
+    this.textCapitalization = TextCapitalization.none,
+    this.onSubmitted,
   });
 
   final TextEditingController controller;
   final String hint;
   final IconData prefixIcon;
-  final TextInputType? keyboardType;
-  final bool obscureText;
-  final IconData? suffixIcon;
-  final VoidCallback? onSuffixTap;
+  final TextCapitalization textCapitalization;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      keyboardType: keyboardType,
-      obscureText: obscureText,
+      textCapitalization: textCapitalization,
+      onSubmitted: onSubmitted,
       cursorColor: _kCyan,
       style: const TextStyle(
         color: Colors.white,
@@ -546,12 +456,6 @@ class _RoundedField extends StatelessWidget {
         filled: true,
         fillColor: _kField,
         prefixIcon: Icon(prefixIcon, color: const Color(0xFF4A5568), size: 20),
-        suffixIcon: suffixIcon == null
-            ? null
-            : IconButton(
-                onPressed: onSuffixTap,
-                icon: Icon(suffixIcon, color: const Color(0xFF4A5568), size: 20),
-              ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(

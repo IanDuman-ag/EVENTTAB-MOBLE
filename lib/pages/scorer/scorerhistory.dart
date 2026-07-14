@@ -48,13 +48,11 @@ class _ScorerHistoryBodyState extends State<ScorerHistoryBody> {
     });
 
     final tab = status ?? _tab;
-    final q = _search.trim();
-    final query = q.isEmpty
-        ? '/api/events/scorer/history/?status=$tab'
-        : '/api/events/scorer/history/?status=$tab&q=${Uri.encodeComponent(q)}';
 
     try {
-      final res = await ScorerApi.get(query);
+      final res = await ScorerApi.get(
+        '/api/events/scorer/history/?status=$tab',
+      );
       if (!mounted) return;
 
       if (res.statusCode == 200) {
@@ -83,83 +81,172 @@ class _ScorerHistoryBodyState extends State<ScorerHistoryBody> {
     }
   }
 
+  List<Map<String, dynamic>> get _filteredEntries {
+    final q = _search.trim().toLowerCase();
+    if (q.isEmpty) return _entries;
+
+    return _entries.where((e) {
+      final haystack = [
+        e['match_title'],
+        e['event_name'],
+        e['teams_label'],
+        e['venue'],
+        e['status_label'],
+        e['status'],
+        '${e['score_a']}',
+        '${e['score_b']}',
+        e['date_display'],
+        e['time_display'],
+      ].whereType<Object>().map((v) => '$v'.toLowerCase()).join(' ');
+      return haystack.contains(q);
+    }).toList();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() => _search = value);
+  }
+
+  void _clearSearch() {
+    _searchCtrl.clear();
+    setState(() => _search = '');
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Score History',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
+    final filtered = _filteredEntries;
+
+    return ColoredBox(
+      color: scorerWhite,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            height: 3,
+            color: scorerGold,
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 18, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Score History',
+                  style: TextStyle(
+                    color: scorerNavy,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'View all your submitted match results.',
-                style: TextStyle(color: scorerMuted, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        _HistoryTabs(
-          current: _tab,
-          counts: _counts,
-          onChanged: (tab) => _load(status: tab),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: TextField(
-            controller: _searchCtrl,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Search match, team or venue...',
-              hintStyle: const TextStyle(color: scorerMuted),
-              prefixIcon: const Icon(Icons.search_rounded, color: scorerMuted),
-              filled: true,
-              fillColor: scorerCard,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: scorerBorder),
-              ),
+                SizedBox(height: 4),
+                Text(
+                  'Submitted scores, including tabulator-approved results.',
+                  style: TextStyle(color: scorerMuted, fontSize: 13),
+                ),
+              ],
             ),
-            onSubmitted: (_) => _load(),
           ),
-        ),
-        Expanded(
-          child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: scorerPurple),
-                )
-              : _error != null
-                  ? Center(child: Text(_error!))
-                  : _entries.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No submitted results yet.',
-                            style: TextStyle(color: scorerMuted),
-                          ),
-                        )
-                      : RefreshIndicator(
-                          color: scorerPurple,
-                          onRefresh: () => _load(),
-                          child: ListView.builder(
-                            padding: const EdgeInsets.all(20),
-                            itemCount: _entries.length,
-                            itemBuilder: (_, i) =>
-                                _HistoryCard(entry: _entries[i]),
-                          ),
+          const SizedBox(height: 14),
+          _HistoryTabs(
+            current: _tab,
+            counts: _counts,
+            onChanged: (tab) => _load(status: tab),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchCtrl,
+                    style: const TextStyle(color: scorerNavy),
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Search match, team, venue or score...',
+                      hintStyle: const TextStyle(color: scorerMuted),
+                      prefixIcon: const Icon(Icons.search_rounded,
+                          color: scorerMuted),
+                      suffixIcon: _search.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear_rounded,
+                                  color: scorerMuted),
+                              onPressed: _clearSearch,
+                            ),
+                      filled: true,
+                      fillColor: const Color(0xFFEEEDF5),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide:
+                            const BorderSide(color: scorerGold, width: 1.2),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: scorerWhite,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: scorerBorder),
+                  ),
+                  child: const Icon(Icons.tune_rounded, color: scorerNavy),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: scorerGold),
+                  )
+                : _error != null
+                    ? Center(
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: scorerMuted),
                         ),
-        ),
-      ],
+                      )
+                    : filtered.isEmpty
+                        ? Center(
+                            child: Text(
+                              _search.trim().isEmpty
+                                  ? (_tab == 'approved'
+                                      ? 'No approved scores yet.'
+                                      : 'No submitted results yet.')
+                                  : 'No results match your search.',
+                              style: const TextStyle(color: scorerMuted),
+                            ),
+                          )
+                        : RefreshIndicator(
+                            color: scorerGold,
+                            onRefresh: () => _load(),
+                            child: ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                              itemCount: filtered.length,
+                              itemBuilder: (_, i) => _HistoryCard(
+                                entry: filtered[i],
+                                accentNavy: i.isOdd,
+                              ),
+                            ),
+                          ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -195,21 +282,22 @@ class _HistoryTabs extends StatelessWidget {
             padding: const EdgeInsets.only(right: 10),
             child: GestureDetector(
               onTap: () => onChanged(tab.$1),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(
-                  color: isActive ? scorerPurple : Colors.transparent,
+                  color: isActive ? scorerGold : scorerWhite,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isActive ? scorerPurple : scorerBorder,
+                    color: isActive ? scorerGold : scorerBorder,
                   ),
                 ),
                 child: Text(
                   '${tab.$2} ($count)',
                   style: TextStyle(
-                    color: isActive ? Colors.white : scorerMuted,
-                    fontWeight: FontWeight.w700,
+                    color: isActive ? scorerWhite : scorerNavy,
+                    fontWeight: FontWeight.w800,
                     fontSize: 12,
                   ),
                 ),
@@ -223,13 +311,23 @@ class _HistoryTabs extends StatelessWidget {
 }
 
 class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.entry});
+  const _HistoryCard({
+    required this.entry,
+    this.accentNavy = false,
+  });
 
   final Map<String, dynamic> entry;
+  final bool accentNavy;
 
   @override
   Widget build(BuildContext context) {
     final status = entry['status'] as String? ?? 'pending';
+    final scoreA = entry['score_a'];
+    final scoreB = entry['score_b'];
+    final icon = scorerSportIcon(entry['sport_icon'] as String?);
+    final teams = entry['teams_label'] as String? ?? '';
+    final stripe = accentNavy ? scorerNavy : scorerGold;
+
     Color statusColor;
     switch (status) {
       case 'approved':
@@ -237,93 +335,159 @@ class _HistoryCard extends StatelessWidget {
       case 'returned':
         statusColor = scorerRed;
       default:
-        statusColor = scorerOrange;
+        statusColor = scorerGold;
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: scorerCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: scorerBorder),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: scorerPurple.withValues(alpha: 0.15),
-            child: Icon(
-              scorerSportIcon(entry['sport_icon'] as String?),
-              color: scorerPurple,
-              size: 20,
-            ),
+        color: scorerWhite,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: scorerNavy.withValues(alpha: 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 5, color: stripe),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                child: Stack(
                   children: [
-                    Expanded(
-                      child: Text(
-                        entry['match_title'] as String? ?? '',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        ),
+                    Positioned(
+                      right: -4,
+                      bottom: -10,
+                      child: Icon(
+                        icon,
+                        size: 68,
+                        color: scorerNavy.withValues(alpha: 0.05),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        (entry['status_label'] as String? ?? status)
-                            .toUpperCase(),
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: scorerNavy,
+                          child: Icon(icon, color: scorerGold, size: 18),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry['match_title'] as String? ?? '',
+                                style: const TextStyle(
+                                  color: scorerNavy,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text.rich(
+                                TextSpan(children: scorerTeamsSpans(teams)),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.calendar_today_rounded,
+                                      size: 12, color: scorerMuted),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      [
+                                        entry['date_display'],
+                                        entry['time_display'],
+                                      ]
+                                          .where((v) =>
+                                              (v as String?)?.isNotEmpty ==
+                                              true)
+                                          .join(' • '),
+                                      style: const TextStyle(
+                                        color: scorerMuted,
+                                        fontSize: 11,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.location_on_outlined,
+                                      size: 12, color: scorerMuted),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    entry['venue'] as String? ?? '—',
+                                    style: const TextStyle(
+                                      color: scorerMuted,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                (entry['status_label'] as String? ?? status)
+                                    .toUpperCase(),
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              '${scoreA ?? '—'} - ${scoreB ?? '—'}',
+                              style: TextStyle(
+                                color: status == 'approved'
+                                    ? scorerGreen
+                                    : scorerGold,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              status == 'approved'
+                                  ? 'Approved'
+                                  : 'Submitted',
+                              style: const TextStyle(
+                                color: scorerMuted,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  entry['teams_label'] as String? ?? '',
-                  style: const TextStyle(color: scorerMuted, fontSize: 12),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${entry['date_display']} • ${entry['time_display']} • ${entry['venue']}',
-                  style: const TextStyle(color: scorerMuted, fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${entry['score_a']} - ${entry['score_b']}',
-                style: const TextStyle(
-                  color: scorerPurple,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                ),
               ),
-              const Text('Final', style: TextStyle(color: scorerMuted, fontSize: 10)),
-              const Icon(Icons.chevron_right_rounded, color: scorerMuted),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

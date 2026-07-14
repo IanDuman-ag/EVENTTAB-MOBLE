@@ -88,7 +88,7 @@ class _ScorerHomeBodyState extends State<ScorerHomeBody> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(color: scorerPurple),
+        child: CircularProgressIndicator(color: scorerGold),
       );
     }
 
@@ -101,7 +101,10 @@ class _ScorerHomeBodyState extends State<ScorerHomeBody> {
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _load,
-              style: FilledButton.styleFrom(backgroundColor: scorerPurple),
+              style: FilledButton.styleFrom(
+                backgroundColor: scorerNavy,
+                foregroundColor: scorerWhite,
+              ),
               child: const Text('Retry'),
             ),
           ],
@@ -113,167 +116,190 @@ class _ScorerHomeBodyState extends State<ScorerHomeBody> {
     final name = _data!['greeting_name'] as String? ?? 'Scorer';
     final schedule = (_data!['todays_schedule'] as List? ?? [])
         .cast<Map<String, dynamic>>();
-    final notifications = (_data!['notifications'] as List? ?? [])
-        .cast<Map<String, dynamic>>();
 
     return RefreshIndicator(
-      color: scorerPurple,
+      color: scorerGold,
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: EdgeInsets.zero,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Navy hero with greeting + metric cards
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [scorerNavy, Color(0xFF2A2668)],
+              ),
+            ),
+            child: Stack(
               children: [
-                Text(
-                  '${scorerGreeting()}, $name! 👋',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
+                Positioned(
+                  right: -30,
+                  top: 10,
+                  child: Opacity(
+                    opacity: 0.08,
+                    child: Image.asset(
+                      'assets/Finallogo.png',
+                      width: 180,
+                      height: 180,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  "Here's what's happening today.",
-                  style: TextStyle(color: scorerMuted, fontSize: 14),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '${scorerGreeting()}, ',
+                              style: const TextStyle(
+                                color: scorerWhite,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '$name! 👋',
+                              style: const TextStyle(
+                                color: scorerGold,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "Here's what's happening today.",
+                        style: TextStyle(
+                          color: scorerWhite.withValues(alpha: 0.75),
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          ScorerStatCard(
+                            icon: Icons.assignment_rounded,
+                            value: '${stats['assigned_matches'] ?? 0}',
+                            label: 'Assigned Matches',
+                            color: scorerNavy,
+                          ),
+                          const SizedBox(width: 10),
+                          ScorerStatCard(
+                            icon: Icons.check_circle_rounded,
+                            value: '${stats['completed_matches'] ?? 0}',
+                            label: 'Completed',
+                            color: scorerGold,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          ScorerStatCard(
+                            icon: Icons.schedule_rounded,
+                            value: '${stats['live_matches'] ?? 0}',
+                            label: 'Live Match',
+                            color: scorerGold,
+                          ),
+                          const SizedBox(width: 10),
+                          ScorerStatCard(
+                            icon: Icons.event_rounded,
+                            value: '${stats['upcoming_matches'] ?? 0}',
+                            label: 'Upcoming',
+                            color: scorerNavy,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                ScorerStatCard(
-                  icon: Icons.assignment_rounded,
-                  value: '${stats['assigned_matches'] ?? 0}',
-                  label: 'Assigned Matches',
-                  color: scorerPurple,
-                ),
-                const SizedBox(width: 10),
-                ScorerStatCard(
-                  icon: Icons.check_circle_outline_rounded,
-                  value: '${stats['completed_matches'] ?? 0}',
-                  label: 'Completed',
-                  color: scorerGreen,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                ScorerStatCard(
-                  icon: Icons.schedule_rounded,
-                  value: '${stats['live_matches'] ?? 0}',
-                  label: 'Live Match',
-                  color: scorerOrange,
-                ),
-                const SizedBox(width: 10),
-                ScorerStatCard(
-                  icon: Icons.event_rounded,
-                  value: '${stats['upcoming_matches'] ?? 0}',
-                  label: 'Upcoming',
-                  color: scorerBlue,
-                ),
-              ],
-            ),
-          ),
-          ScorerSectionHeader(
-            title: "TODAY'S SCHEDULE",
-            trailing: widget.onViewAllAssignments != null
-                ? GestureDetector(
-                    onTap: widget.onViewAllAssignments,
-                    child: const Text(
-                      'View All >',
-                      style: TextStyle(color: scorerMuted, fontSize: 12),
-                    ),
-                  )
-                : null,
-          ),
-          if (schedule.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                'No matches scheduled for today.',
-                style: TextStyle(color: scorerMuted),
-              ),
-            )
-          else
-            ...schedule.map(
-              (m) => ScorerAssignmentCard(
-                match: m,
-                compact: true,
-                onTap: () => _editMatch(m),
-              ),
-            ),
-          ScorerSectionHeader(title: 'NOTIFICATIONS'),
-          if (notifications.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                'No notifications.',
-                style: TextStyle(color: scorerMuted),
-              ),
-            )
-          else
-            ...notifications.map((n) => _NotificationTile(notification: n)),
-          const ScorerReminderBox(),
-        ],
-      ),
-    );
-  }
-}
 
-class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({required this.notification});
-
-  final Map<String, dynamic> notification;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: scorerCard,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: scorerBorder),
-        ),
-        child: Row(
-          children: [
-            Expanded(
+          // White schedule sheet overlapping navy
+          Transform.translate(
+            offset: const Offset(0, -18),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: scorerWhite,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    notification['title'] as String? ?? '',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
+                  ScorerSectionHeader(
+                    title: "TODAY'S SCHEDULE",
+                    trailing: widget.onViewAllAssignments != null
+                        ? GestureDetector(
+                            onTap: widget.onViewAllAssignments,
+                            child: const Text(
+                              'View All >',
+                              style: TextStyle(
+                                color: scorerNavy,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          )
+                        : null,
                   ),
-                  if ((notification['body'] as String?)?.isNotEmpty == true)
-                    Text(
-                      notification['body'] as String,
-                      style: const TextStyle(color: scorerMuted, fontSize: 12),
-                    ),
+                  if (schedule.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 18,
+                        ),
+                        decoration: BoxDecoration(
+                          color: scorerBg,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'No matches scheduled for today.',
+                                style: TextStyle(
+                                  color: scorerMuted,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.calendar_month_rounded,
+                              size: 42,
+                              color: scorerNavy.withValues(alpha: 0.18),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    ...schedule.asMap().entries.map(
+                          (e) => ScorerAssignmentCard(
+                            match: e.value,
+                            compact: true,
+                            accentNavy: e.key.isOdd,
+                            onTap: () => _editMatch(e.value),
+                          ),
+                        ),
+                  const ScorerReminderBox(),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
-            Text(
-              notification['time_display'] as String? ?? '',
-              style: const TextStyle(color: scorerMuted, fontSize: 11),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -183,18 +183,51 @@ class ScorerSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final words = title.split(' ');
+    final first = words.isNotEmpty ? words.first : title;
+    final rest = words.length > 1 ? ' ${words.sublist(1).join(' ')}' : '';
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
       child: Row(
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: scorerPurple,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: first,
+                      style: const TextStyle(
+                        color: scorerNavy,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    TextSpan(
+                      text: rest,
+                      style: const TextStyle(
+                        color: scorerNavy,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                width: 42,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: scorerGold,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ],
           ),
           const Spacer(),
           if (trailing != null) trailing!,
@@ -209,22 +242,30 @@ class ScorerPortalHeader extends StatelessWidget {
     super.key,
     this.notificationCount = 0,
     this.onProfile,
+    this.onNotifications,
   });
 
   final int notificationCount;
   final VoidCallback? onProfile;
+  final VoidCallback? onNotifications;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: scorerCard,
-        border: Border(bottom: BorderSide(color: scorerBorder)),
+      decoration: BoxDecoration(
+        color: scorerWhite,
+        boxShadow: [
+          BoxShadow(
+            color: scorerNavy.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Image.asset('assets/Finallogo.png', width: 32, height: 32),
+          Image.asset('assets/Finallogo.png', width: 34, height: 34),
           const SizedBox(width: 10),
           const Expanded(
             child: Column(
@@ -233,10 +274,10 @@ class ScorerPortalHeader extends StatelessWidget {
                 Text(
                   'EVENTTAB',
                   style: TextStyle(
-                    color: scorerPurple,
-                    fontSize: 13,
+                    color: scorerNavy,
+                    fontSize: 14,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
+                    letterSpacing: 1.1,
                   ),
                 ),
                 Text(
@@ -245,45 +286,50 @@ class ScorerPortalHeader extends StatelessWidget {
                     color: scorerMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 1,
+                    letterSpacing: 0.8,
                   ),
                 ),
               ],
             ),
           ),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              const Icon(Icons.notifications_none_rounded, color: Colors.white),
-              if (notificationCount > 0)
-                Positioned(
-                  right: -2,
-                  top: -2,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: scorerRed,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '$notificationCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
+          GestureDetector(
+            onTap: onNotifications,
+            behavior: HitTestBehavior.opaque,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications_none_rounded,
+                    color: scorerNavy, size: 26),
+                if (notificationCount > 0)
+                  Positioned(
+                    right: -3,
+                    top: -3,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: scorerGold,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '$notificationCount',
+                        style: const TextStyle(
+                          color: scorerWhite,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(width: 12),
           GestureDetector(
             onTap: onProfile,
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: scorerPurple.withValues(alpha: 0.2),
-              child: const Icon(Icons.person, color: scorerPurple, size: 20),
+            child: const CircleAvatar(
+              radius: 16,
+              backgroundColor: scorerNavy,
+              child: Icon(Icons.person, color: scorerWhite, size: 18),
             ),
           ),
         ],
@@ -305,13 +351,19 @@ class ScorerBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: scorerCard,
-        border: Border(top: BorderSide(color: scorerBorder)),
+      decoration: BoxDecoration(
+        color: scorerWhite,
+        boxShadow: [
+          BoxShadow(
+            color: scorerNavy.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: SafeArea(
         child: SizedBox(
-          height: 64,
+          height: 68,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -362,23 +414,29 @@ class _ScorerNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? scorerPurple : scorerMuted;
+    final color = isActive ? scorerGold : scorerNavy;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: 76,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 78,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive ? scorerGold.withValues(alpha: 0.14) : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: color, size: 22),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
                 color: color,
                 fontSize: 9,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
               ),
               textAlign: TextAlign.center,
             ),
@@ -407,28 +465,63 @@ class ScorerStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: scorerCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: scorerBorder),
+          color: scorerWhite,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: scorerNavy.withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+              child: Stack(
+                children: [
+                  Positioned(
+                    right: -6,
+                    bottom: -8,
+                    child: Icon(
+                      icon,
+                      size: 46,
+                      color: color.withValues(alpha: 0.10),
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(icon, color: color, size: 20),
+                      const SizedBox(height: 10),
+                      Text(
+                        value,
+                        style: const TextStyle(
+                          color: scorerNavy,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          color: scorerMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            Text(
-              label,
-              style: const TextStyle(color: scorerMuted, fontSize: 11),
+            const ColoredBox(
+              color: scorerGold,
+              child: SizedBox(height: 3),
             ),
           ],
         ),
@@ -443,20 +536,23 @@ class ScorerAssignmentCard extends StatelessWidget {
     required this.match,
     required this.onTap,
     this.compact = false,
+    this.accentNavy = false,
   });
 
   final Map<String, dynamic> match;
   final VoidCallback onTap;
   final bool compact;
+  final bool accentNavy;
 
   @override
   Widget build(BuildContext context) {
     final status = match['status'] as String? ?? 'upcoming';
-    final isLive = status == 'live';
     final icon = scorerSportIcon(match['sport_icon'] as String?);
     final scoreA = match['score_a'];
     final scoreB = match['score_b'];
     final hasScores = scoreA != null || scoreB != null;
+    final teams = match['teams_label'] as String? ?? '';
+    final stripe = accentNavy ? scorerNavy : scorerGold;
 
     Color statusColor;
     switch (status) {
@@ -465,146 +561,170 @@ class ScorerAssignmentCard extends StatelessWidget {
       case 'completed':
         statusColor = scorerGreen;
       default:
-        statusColor = scorerOrange;
+        statusColor = scorerGold;
     }
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 0, 20, compact ? 10 : 14),
+      padding: EdgeInsets.fromLTRB(20, 0, 20, compact ? 10 : 12),
       child: Material(
-        color: scorerCard,
+        color: scorerWhite,
         borderRadius: BorderRadius.circular(16),
+        elevation: 0,
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
           child: Container(
-            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
+              color: scorerWhite,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isLive ? scorerRed : scorerBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: scorerNavy.withValues(alpha: 0.07),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: scorerPurple.withValues(alpha: 0.15),
-                      child: Icon(icon, color: scorerPurple, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+            clipBehavior: Clip.antiAlias,
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(width: 5, color: stripe),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                      child: Stack(
                         children: [
-                          Text(
-                            match['match_title'] as String? ??
-                                match['title'] as String? ??
-                                'Match',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
+                          Positioned(
+                            right: -4,
+                            bottom: -8,
+                            child: Icon(
+                              icon,
+                              size: 64,
+                              color: scorerNavy.withValues(alpha: 0.05),
                             ),
                           ),
-                          Text(
-                            match['teams_label'] as String? ?? '',
-                            style: const TextStyle(
-                              color: scorerMuted,
-                              fontSize: 12,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: scorerNavy,
+                                    child: Icon(icon, color: scorerGold, size: 18),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      match['match_title'] as String? ??
+                                          match['title'] as String? ??
+                                          'Match',
+                                      style: const TextStyle(
+                                        color: scorerNavy,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: statusColor.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      status.toUpperCase(),
+                                      style: TextStyle(
+                                        color: statusColor,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(Icons.chevron_right_rounded,
+                                      color: scorerMuted, size: 20),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text.rich(
+                                TextSpan(children: scorerTeamsSpans(teams)),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.calendar_today_rounded,
+                                      size: 12, color: scorerMuted),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      [
+                                        match['date_display'],
+                                        match['time_display'],
+                                      ]
+                                          .where((v) =>
+                                              (v as String?)?.isNotEmpty == true)
+                                          .join(' • '),
+                                      style: const TextStyle(
+                                        color: scorerMuted,
+                                        fontSize: 11,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Icon(Icons.location_on_outlined,
+                                      size: 12, color: scorerMuted),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    match['venue'] as String? ?? '—',
+                                    style: const TextStyle(
+                                      color: scorerMuted,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (hasScores) ...[
+                                const SizedBox(height: 10),
+                                Text(
+                                  '$scoreA - $scoreB',
+                                  style: const TextStyle(
+                                    color: scorerGold,
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ] else if (status == 'upcoming') ...[
+                                const SizedBox(height: 10),
+                                const Row(
+                                  children: [
+                                    Icon(Icons.schedule_rounded,
+                                        size: 14, color: scorerGold),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Upcoming match',
+                                      style: TextStyle(
+                                        color: scorerGold,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        status.toUpperCase(),
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right_rounded, color: scorerMuted),
-                  ],
-                ),
-                if (!compact) ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Icon(Icons.calendar_today_rounded,
-                          size: 13, color: scorerMuted),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${match['date_display'] ?? ''} • ${match['time_display'] ?? ''}',
-                        style: const TextStyle(color: scorerMuted, fontSize: 11),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined,
-                          size: 13, color: scorerMuted),
-                      const SizedBox(width: 6),
-                      Text(
-                        match['venue'] as String? ?? '—',
-                        style: const TextStyle(color: scorerMuted, fontSize: 11),
-                      ),
-                    ],
                   ),
                 ],
-                if (hasScores && !compact) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    '$scoreA - $scoreB',
-                    style: const TextStyle(
-                      color: scorerPurple,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-                if (!compact && status != 'completed') ...[
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: match['has_started_scoring'] == true
-                        ? FilledButton(
-                            onPressed: onTap,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: scorerPurple,
-                              foregroundColor: Colors.white,
-                            ),
-                            child: Text(
-                              match['action_label'] as String? ??
-                                  'CONTINUE SCORING',
-                            ),
-                          )
-                        : OutlinedButton(
-                            onPressed: onTap,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: scorerPurple,
-                              side: const BorderSide(color: scorerPurple),
-                            ),
-                            child: Text(
-                              match['action_label'] as String? ??
-                                  'START SCORING',
-                            ),
-                          ),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),
@@ -623,20 +743,38 @@ class ScorerReminderBox extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: scorerBlue.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: scorerBlue.withValues(alpha: 0.35)),
+          color: scorerCream,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: scorerGold.withValues(alpha: 0.45)),
         ),
         child: const Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.info_outline_rounded, color: scorerBlue, size: 20),
+            Icon(Icons.info_rounded, color: scorerGold, size: 22),
             SizedBox(width: 10),
             Expanded(
-              child: Text(
-                'Please ensure scores are accurate before submitting. '
-                'You can only submit once per match.',
-                style: TextStyle(color: scorerMuted, fontSize: 12, height: 1.4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Please ensure scores are accurate before submitting.',
+                    style: TextStyle(
+                      color: scorerNavy,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'You can only submit once per match.',
+                    style: TextStyle(
+                      color: scorerGold,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

@@ -68,230 +68,266 @@ class _ScorerProfileBodyState extends State<ScorerProfileBody> {
     }
   }
 
-  String get _initials {
-    final name = _profile?['display_name'] as String? ?? 'S';
-    final parts = name.split(' ').where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return 'S';
-    if (parts.length == 1) return parts.first[0].toUpperCase();
-    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(color: scorerPurple),
+        child: CircularProgressIndicator(color: scorerGold),
       );
     }
 
     if (_error != null) {
-      return Center(child: Text(_error!));
+      return Center(
+        child: Text(_error!, style: const TextStyle(color: scorerMuted)),
+      );
     }
 
     final p = _profile!;
     final stats = p['stats'] as Map<String, dynamic>? ?? {};
+    final name = p['display_name'] as String? ?? 'Scorer';
 
-    return RefreshIndicator(
-      color: scorerPurple,
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const Text(
-            'My Profile',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'View your account summary.',
-            style: TextStyle(color: scorerMuted),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  scorerPurple.withValues(alpha: 0.25),
-                  scorerCard,
-                ],
+    return ColoredBox(
+      color: scorerBg,
+      child: RefreshIndicator(
+        color: scorerGold,
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          children: [
+            const Text(
+              'My Profile',
+              style: TextStyle(
+                color: scorerNavy,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
               ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: scorerBorder),
             ),
-            child: Column(
-              children: [
-                Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 44,
-                      backgroundColor: scorerPurple.withValues(alpha: 0.2),
-                      child: Text(
-                        _initials,
-                        style: const TextStyle(
-                          color: scorerPurple,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                        ),
+            const SizedBox(height: 4),
+            const Text(
+              'View your account summary.',
+              style: TextStyle(color: scorerMuted, fontSize: 13),
+            ),
+            const SizedBox(height: 18),
+
+            // Navy profile banner
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [scorerNavy, Color(0xFF2A2668)],
+                ),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    right: -10,
+                    top: -10,
+                    child: Opacity(
+                      opacity: 0.12,
+                      child: Image.asset(
+                        'assets/Finallogo.png',
+                        width: 120,
+                        height: 120,
                       ),
                     ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: scorerPurple,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.camera_alt_rounded,
-                            size: 14, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  p['display_name'] as String? ?? '',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: scorerPurple.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    p['role'] as String? ?? 'SCORER',
-                    style: const TextStyle(
-                      color: scorerPurple,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-                if ((p['location'] as String?)?.isNotEmpty == true) ...[
-                  const SizedBox(height: 8),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.location_on_outlined,
-                          size: 14, color: scorerMuted),
-                      const SizedBox(width: 4),
-                      Text(
-                        p['location'] as String,
-                        style: const TextStyle(color: scorerMuted),
+                      Stack(
+                        children: [
+                          const CircleAvatar(
+                            radius: 36,
+                            backgroundColor: scorerWhite,
+                            child: Icon(Icons.person_rounded,
+                                color: scorerNavy, size: 40),
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(
+                                color: scorerGold,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt_rounded,
+                                size: 12,
+                                color: scorerWhite,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                color: scorerWhite,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF16133F),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                p['role'] as String? ?? 'SCORER',
+                                style: const TextStyle(
+                                  color: scorerGold,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _StatTile(
-                icon: Icons.assignment_rounded,
-                value: '${stats['matches_scored'] ?? 0}',
-                label: 'Matches Scored',
-                color: scorerPurple,
-              ),
-              const SizedBox(width: 10),
-              _StatTile(
-                icon: Icons.check_circle_outline_rounded,
-                value: '${stats['completed'] ?? 0}',
-                label: 'Completed',
-                color: scorerGreen,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _StatTile(
-                icon: Icons.schedule_rounded,
-                value: '${stats['pending'] ?? 0}',
-                label: 'Pending',
-                color: scorerOrange,
-              ),
-              const SizedBox(width: 10),
-              _StatTile(
-                icon: Icons.emoji_events_rounded,
-                value: '${stats['events'] ?? 0}',
-                label: 'Events',
-                color: scorerBlue,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: scorerCard,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: scorerBorder),
-            ),
-            child: Column(
+
+            const SizedBox(height: 16),
+            Row(
               children: [
-                const Icon(Icons.verified_user_rounded,
-                    color: scorerPurple, size: 40),
-                const SizedBox(height: 12),
-                const Text(
-                  'Your account is all set!',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
+                _StatTile(
+                  icon: Icons.assignment_rounded,
+                  value: '${stats['matches_scored'] ?? 0}',
+                  label: 'Matches Scored',
+                  color: scorerGold,
+                  iconBg: scorerGold.withValues(alpha: 0.15),
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  'You can focus on scoring and view your match assignments.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: scorerMuted, fontSize: 12),
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: widget.onGoToAssignments,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: scorerPurple,
-                    side: const BorderSide(color: scorerPurple),
-                    minimumSize: const Size(double.infinity, 48),
-                  ),
-                  icon: const Icon(Icons.assignment_rounded),
-                  label: const Text('Go to My Assignments'),
+                const SizedBox(width: 10),
+                _StatTile(
+                  icon: Icons.check_circle_rounded,
+                  value: '${stats['completed'] ?? 0}',
+                  label: 'Completed',
+                  color: scorerGreen,
+                  iconBg: scorerGreen.withValues(alpha: 0.15),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: OutlinedButton.icon(
-              onPressed: widget.onLogout,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: scorerRed,
-                side: const BorderSide(color: scorerRed),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _StatTile(
+                  icon: Icons.schedule_rounded,
+                  value: '${stats['pending'] ?? 0}',
+                  label: 'Pending',
+                  color: scorerGold,
+                  iconBg: scorerGold.withValues(alpha: 0.15),
+                ),
+                const SizedBox(width: 10),
+                _StatTile(
+                  icon: Icons.emoji_events_rounded,
+                  value: '${stats['events'] ?? 0}',
+                  label: 'Events',
+                  color: scorerBlue,
+                  iconBg: scorerBlue.withValues(alpha: 0.15),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: scorerCream,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: scorerGold.withValues(alpha: 0.35)),
               ),
-              icon: const Icon(Icons.logout_rounded),
-              label: const Text(
-                'Log Out',
-                style: TextStyle(fontWeight: FontWeight.w800),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(
+                      color: scorerGold,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.verified_user_rounded,
+                      color: scorerWhite,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Your account is all set!',
+                    style: TextStyle(
+                      color: scorerNavy,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'You can focus on scoring and view your match assignments.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: scorerMuted, fontSize: 12),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: widget.onGoToAssignments,
+                style: FilledButton.styleFrom(
+                  backgroundColor: scorerGold,
+                  foregroundColor: scorerWhite,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.assignment_rounded),
+                label: const Text(
+                  'Go to My Assignments',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton.icon(
+                onPressed: widget.onLogout,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: scorerRed,
+                  side: const BorderSide(color: scorerRed, width: 1.4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text(
+                  'Log Out',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -303,12 +339,14 @@ class _StatTile extends StatelessWidget {
     required this.value,
     required this.label,
     required this.color,
+    required this.iconBg,
   });
 
   final IconData icon;
   final String value;
   final String label;
   final Color color;
+  final Color iconBg;
 
   @override
   Widget build(BuildContext context) {
@@ -316,24 +354,44 @@ class _StatTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: scorerCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: scorerBorder),
+          color: scorerWhite,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: scorerNavy.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: iconBg,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(height: 12),
             Text(
               value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
+              style: TextStyle(
+                color: color,
+                fontSize: 24,
                 fontWeight: FontWeight.w900,
               ),
             ),
-            Text(label, style: const TextStyle(color: scorerMuted, fontSize: 11)),
+            Text(
+              label,
+              style: const TextStyle(
+                color: scorerMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),

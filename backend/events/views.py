@@ -1,7 +1,8 @@
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db import models
+from django.db import models, connection
+from django.db.utils import ProgrammingError
 from django.db.models import Sum, Q
 from decimal import Decimal
 
@@ -22,6 +23,52 @@ class TeamViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Team.objects.all()
     serializer_class = TeamSerializer
     permission_classes = [permissions.AllowAny]
+
+    def _teams_fallback_payload(self):
+        """Portal DB schema differs from Django models — read real columns."""
+        teams = []
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT t.id,
+                       t.name,
+                       COALESCE(NULLIF(t.code, ''), d.code, UPPER(LEFT(t.name, 4))),
+                       COALESCE(d.delegation_color, '#00C5D9'),
+                       COALESCE(t.updated_at, t.created_at)
+                FROM events_team t
+                LEFT JOIN events_department d ON d.id = t.department_id
+                ORDER BY t.name
+                """
+            )
+            for row in cursor.fetchall():
+                teams.append(
+                    {
+                        "id": row[0],
+                        "name": row[1],
+                        "abbreviation": (row[2] or "?")[:10].upper(),
+                        "logo_icon": (row[2] or "")[:10],
+                        "color": row[3] or "#00C5D9",
+                        "description": "",
+                        "updated_at": row[4].isoformat() if row[4] else None,
+                    }
+                )
+        return teams
+
+    def list(self, request, *args, **kwargs):
+        try:
+            return super().list(request, *args, **kwargs)
+        except ProgrammingError:
+            return Response(self._teams_fallback_payload())
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            return super().retrieve(request, *args, **kwargs)
+        except ProgrammingError:
+            team_id = kwargs.get("pk")
+            for team in self._teams_fallback_payload():
+                if str(team["id"]) == str(team_id):
+                    return Response(team)
+            return Response({"detail": "Not found."}, status=404)
 
     def get_queryset(self):
         qs = super().get_queryset()

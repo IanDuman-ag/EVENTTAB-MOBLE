@@ -197,7 +197,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               const SizedBox(height: 6),
                               const Text(
-                                'Enter your access code from EventTab Admin',
+                                'Enter your access code',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: _kMuted,

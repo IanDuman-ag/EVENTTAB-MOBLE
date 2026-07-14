@@ -8,6 +8,7 @@ import 'scorer_widgets.dart';
 import 'scorerhome.dart';
 import 'scorermyassignment.dart';
 import 'scorerhistory.dart';
+import 'scorernotification.dart';
 import 'scorerprofile.dart';
 import 'scorerscores.dart';
 
@@ -73,6 +74,7 @@ class _ScorerShellState extends State<ScorerShell> {
             child: ScorerPortalHeader(
               notificationCount: _notificationCount,
               onProfile: () => setState(() => _index = 3),
+              onNotifications: () => showScorerNotifications(context),
             ),
           ),
           Expanded(

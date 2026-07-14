@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 
-const scorerBg = Color(0xFF0B0B12);
-const scorerCard = Color(0xFF17131F);
-const scorerBorder = Color(0xFF2A2433);
-const scorerCyan = Color(0xFF00C5D9);
-const scorerPurple = Color(0xFF9F66FF);
-const scorerMuted = Color(0xFF8B8D91);
-const scorerGreen = Color(0xFF4CAF50);
-const scorerOrange = Color(0xFFFF9800);
-const scorerRed = Color(0xFFFF5252);
-const scorerBlue = Color(0xFF2196F3);
+/// Scorer portal light theme — navy / gold / white (mockup-accurate).
+const scorerNavy = Color(0xFF211D5A);
+const scorerGold = Color(0xFFF5A900);
+const scorerWhite = Color(0xFFFFFFFF);
+const scorerBg = Color(0xFFF5F4FA);
+const scorerCard = Color(0xFFFFFFFF);
+const scorerBorder = Color(0xFFE4E2F0);
+const scorerMuted = Color(0xFF8A87A5);
+const scorerText = Color(0xFF211D5A);
+const scorerCyan = Color(0xFFF5A900);
+const scorerPurple = Color(0xFFF5A900); // primary accent alias
+const scorerGreen = Color(0xFF2E9B4F);
+const scorerOrange = Color(0xFFF5A900);
+const scorerRed = Color(0xFFE53935);
+const scorerBlue = Color(0xFF3D6BFF);
+const scorerCream = Color(0xFFFFF6E5);
 
 String scorerGreeting() {
   final hour = DateTime.now().hour;
@@ -19,11 +25,11 @@ String scorerGreeting() {
 }
 
 Color scorerParseColor(String? hex) {
-  if (hex == null || hex.isEmpty) return scorerCyan;
+  if (hex == null || hex.isEmpty) return scorerGold;
   try {
     return Color(int.parse(hex.replaceFirst('#', '0xFF')));
   } catch (_) {
-    return scorerCyan;
+    return scorerGold;
   }
 }
 
@@ -47,4 +53,47 @@ IconData scorerSportIcon(String? sport) {
     default:
       return Icons.sports_rounded;
   }
+}
+
+/// Split "A vs B" so "vs" can be styled in gold.
+List<InlineSpan> scorerTeamsSpans(String label, {double fontSize = 13}) {
+  final parts = label.split(RegExp(r'\s+vs\s+', caseSensitive: false));
+  if (parts.length < 2) {
+    return [
+      TextSpan(
+        text: label,
+        style: TextStyle(
+          color: scorerNavy,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ];
+  }
+  return [
+    TextSpan(
+      text: parts.first.trim(),
+      style: TextStyle(
+        color: scorerNavy,
+        fontSize: fontSize,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+    TextSpan(
+      text: ' vs ',
+      style: TextStyle(
+        color: scorerGold,
+        fontSize: fontSize,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+    TextSpan(
+      text: parts.sublist(1).join(' vs ').trim(),
+      style: TextStyle(
+        color: scorerNavy,
+        fontSize: fontSize,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  ];
 }

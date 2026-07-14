@@ -36,35 +36,72 @@ def _table_exists(table_name):
 
 
 def fetch_scorer_assigned_event_ids(user):
-    """Event IDs this scorer is assigned to work on (match/bracket events only)."""
+    """Event IDs this scorer is assigned to by admin.
+
+    Sources (in order):
+    1. events_event_assigned_scorers (if present)
+    2. events_event_assigned_judges (admin portal assigns scorers here too)
+
+    Never returns every active event — unassigned scorers see nothing.
+    """
     legacy_id = portal_user_id(user)
+    ids = []
 
     if _table_exists("events_event_assigned_scorers"):
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT event_id
+                SELECT DISTINCT event_id
                 FROM events_event_assigned_scorers
                 WHERE user_id = %s
                 """,
                 [legacy_id],
             )
-            ids = [row[0] for row in cursor.fetchall()]
-            if ids:
-                return ids
+            ids.extend(row[0] for row in cursor.fetchall())
 
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT DISTINCT e.id
-            FROM events_event e
-            INNER JOIN events_bracketmatch bm ON bm.event_id = e.id
-            WHERE e.status = 'active'
-              AND LOWER(COALESCE(e.scoring_method, '')) = 'match'
-            ORDER BY e.id
-            """
-        )
-        return [row[0] for row in cursor.fetchall()]
+    # Admin website stores scorer ↔ event links in assigned_judges.
+    if _table_exists("events_event_assigned_judges"):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT DISTINCT aj.event_id
+                FROM events_event_assigned_judges aj
+                INNER JOIN events_event e ON e.id = aj.event_id
+                WHERE aj.user_id = %s
+                  AND LOWER(COALESCE(e.scoring_method, '')) = 'match'
+                """,
+                [legacy_id],
+            )
+            ids.extend(row[0] for row in cursor.fetchall())
+
+    # Also accept accounts_user pk if it differs from legacy auth_user id.
+    if user.id != legacy_id:
+        if _table_exists("events_event_assigned_scorers"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT DISTINCT event_id
+                    FROM events_event_assigned_scorers
+                    WHERE user_id = %s
+                    """,
+                    [user.id],
+                )
+                ids.extend(row[0] for row in cursor.fetchall())
+        if _table_exists("events_event_assigned_judges"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT DISTINCT aj.event_id
+                    FROM events_event_assigned_judges aj
+                    INNER JOIN events_event e ON e.id = aj.event_id
+                    WHERE aj.user_id = %s
+                      AND LOWER(COALESCE(e.scoring_method, '')) = 'match'
+                    """,
+                    [user.id],
+                )
+                ids.extend(row[0] for row in cursor.fetchall())
+
+    return sorted(set(ids))
 
 
 def _format_time(value):
@@ -357,9 +394,13 @@ def fetch_scorer_history_entries(user, status_filter=None, search=None):
         entries = [
             e
             for e in entries
-            if q in e["match_title"].lower()
-            or q in e["teams_label"].lower()
+            if q in (e.get("match_title") or "").lower()
+            or q in (e.get("event_name") or "").lower()
+            or q in (e.get("teams_label") or "").lower()
             or q in (e.get("venue") or "").lower()
+            or q in (e.get("status_label") or "").lower()
+            or q in str(e.get("score_a") or "")
+            or q in str(e.get("score_b") or "")
         ]
 
     counts = {"all": 0, "approved": 0, "pending": 0, "returned": 0}

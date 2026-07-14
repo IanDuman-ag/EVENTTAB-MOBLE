@@ -29,13 +29,21 @@ class ScorerMyAssignmentsBodyState extends State<ScorerMyAssignmentsBody> {
   Map<String, int> _counts = {};
   String _tab = 'all';
   String _todayDisplay = '';
+  String _search = '';
   bool _isLoading = true;
   String? _error;
+  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     reload();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> reload({String? status}) => _load(status: status);
@@ -79,6 +87,35 @@ class ScorerMyAssignmentsBodyState extends State<ScorerMyAssignmentsBody> {
     }
   }
 
+  List<Map<String, dynamic>> get _filteredAssignments {
+    final q = _search.trim().toLowerCase();
+    if (q.isEmpty) return _assignments;
+
+    return _assignments.where((m) {
+      final haystack = [
+        m['match_title'],
+        m['title'],
+        m['event_name'],
+        m['teams_label'],
+        m['venue'],
+        m['sport'],
+        m['round_label_display'],
+        m['date_display'],
+        m['time_display'],
+      ].whereType<String>().join(' ').toLowerCase();
+      return haystack.contains(q);
+    }).toList();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() => _search = value);
+  }
+
+  void _clearSearch() {
+    _searchCtrl.clear();
+    setState(() => _search = '');
+  }
+
   void _editMatch(Map<String, dynamic> match) {
     if (widget.onEditMatch != null) {
       widget.onEditMatch!(match);
@@ -89,99 +126,183 @@ class ScorerMyAssignmentsBodyState extends State<ScorerMyAssignmentsBody> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-          child: Row(
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'My Assignments',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Matches assigned to you.',
-                      style: TextStyle(color: scorerMuted, fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: scorerCard,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: scorerBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text(
-                      'Today',
-                      style: TextStyle(color: scorerMuted, fontSize: 10),
-                    ),
-                    Text(
-                      _todayDisplay,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        _AssignmentTabs(
-          current: _tab,
-          counts: _counts,
-          onChanged: (tab) => _load(status: tab),
-        ),
-        Expanded(
-          child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: scorerPurple),
-                )
-              : _error != null
-                  ? Center(child: Text(_error!))
-                  : _assignments.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No matches in this category.',
-                            style: TextStyle(color: scorerMuted),
-                          ),
-                        )
-                      : RefreshIndicator(
-                          color: scorerPurple,
-                          onRefresh: () => _load(),
-                          child: ListView(
-                            children: [
-                              ..._assignments.map(
-                                (m) => ScorerAssignmentCard(
-                                  match: m,
-                                  onTap: () => _editMatch(m),
-                                ),
-                              ),
-                              const ScorerReminderBox(),
-                            ],
-                          ),
+    final filtered = _filteredAssignments;
+
+    return ColoredBox(
+      color: scorerBg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'My Assignments',
+                        style: TextStyle(
+                          color: scorerNavy,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
                         ),
-        ),
-      ],
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Matches assigned to you.',
+                        style: TextStyle(color: scorerMuted, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: scorerWhite,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: scorerNavy.withValues(alpha: 0.06),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today_rounded,
+                          size: 16, color: scorerGold),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Today',
+                            style: TextStyle(color: scorerMuted, fontSize: 10),
+                          ),
+                          Text(
+                            _todayDisplay.isEmpty ? '—' : _todayDisplay,
+                            style: const TextStyle(
+                              color: scorerNavy,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchCtrl,
+                    style: const TextStyle(color: scorerNavy),
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Search match, team or venue...',
+                      hintStyle: const TextStyle(color: scorerMuted),
+                      prefixIcon: const Icon(Icons.search_rounded,
+                          color: scorerMuted),
+                      suffixIcon: _search.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear_rounded,
+                                  color: scorerMuted),
+                              onPressed: _clearSearch,
+                            ),
+                      filled: true,
+                      fillColor: const Color(0xFFEEEDF5),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide:
+                            const BorderSide(color: scorerNavy, width: 1.2),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: scorerWhite,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: scorerBorder),
+                  ),
+                  child: const Icon(Icons.tune_rounded, color: scorerNavy),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          _AssignmentTabs(
+            current: _tab,
+            counts: _counts,
+            onChanged: (tab) => _load(status: tab),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: scorerGold),
+                  )
+                : _error != null
+                    ? Center(
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: scorerMuted),
+                        ),
+                      )
+                    : filtered.isEmpty
+                        ? Center(
+                            child: Text(
+                              _search.trim().isEmpty
+                                  ? 'No matches in this category.'
+                                  : 'No matches match your search.',
+                              style: const TextStyle(color: scorerMuted),
+                            ),
+                          )
+                        : RefreshIndicator(
+                            color: scorerGold,
+                            onRefresh: () => _load(),
+                            child: ListView(
+                              children: [
+                                ...filtered.asMap().entries.map(
+                                      (e) => ScorerAssignmentCard(
+                                        match: e.value,
+                                        accentNavy: e.key.isOdd,
+                                        onTap: () => _editMatch(e.value),
+                                      ),
+                                    ),
+                                const ScorerReminderBox(),
+                              ],
+                            ),
+                          ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -217,23 +338,36 @@ class _AssignmentTabs extends StatelessWidget {
             padding: const EdgeInsets.only(right: 10),
             child: GestureDetector(
               onTap: () => onChanged(tab.$1),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(
-                  color: isActive ? scorerPurple : scorerCard,
+                  color: isActive ? scorerNavy : const Color(0xFFEEEDF5),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isActive ? scorerPurple : scorerBorder,
-                  ),
                 ),
-                child: Text(
-                  '${tab.$2} ($count)',
-                  style: TextStyle(
-                    color: isActive ? Colors.white : scorerMuted,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
+                child: Column(
+                  children: [
+                    Text(
+                      '${tab.$2} ($count)',
+                      style: TextStyle(
+                        color: isActive ? scorerWhite : scorerNavy,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (isActive) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        width: 22,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: scorerGold,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),

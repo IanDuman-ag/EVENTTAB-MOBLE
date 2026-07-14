@@ -24,6 +24,13 @@ from .scorer_views import (
     scorer_update_bracket_score,
     scorer_update_score,
 )
+from .viewer_views import (
+    viewer_dashboard,
+    viewer_events,
+    viewer_live,
+    viewer_profile,
+    viewer_rankings,
+)
 
 router = DefaultRouter()
 router.register(r'teams', TeamViewSet)
@@ -62,4 +69,9 @@ urlpatterns = [
         scorer_update_bracket_score,
         name='scorer_update_bracket_score',
     ),
+    path('viewer/dashboard/', viewer_dashboard, name='viewer_dashboard'),
+    path('viewer/events/', viewer_events, name='viewer_events'),
+    path('viewer/live/', viewer_live, name='viewer_live'),
+    path('viewer/rankings/', viewer_rankings, name='viewer_rankings'),
+    path('viewer/profile/', viewer_profile, name='viewer_profile'),
 ]

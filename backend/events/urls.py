@@ -31,6 +31,7 @@ from .viewer_views import (
     viewer_profile,
     viewer_rankings,
 )
+from .tabulator_views import tabulator_queue, tabulator_review
 
 router = DefaultRouter()
 router.register(r'teams', TeamViewSet)
@@ -74,4 +75,6 @@ urlpatterns = [
     path('viewer/live/', viewer_live, name='viewer_live'),
     path('viewer/rankings/', viewer_rankings, name='viewer_rankings'),
     path('viewer/profile/', viewer_profile, name='viewer_profile'),
+    path('tabulator/queue/', tabulator_queue, name='tabulator_queue'),
+    path('tabulator/review/', tabulator_review, name='tabulator_review'),
 ]

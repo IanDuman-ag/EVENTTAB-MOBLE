@@ -370,6 +370,7 @@ def record_bracket_submission(user, match, score_a, score_b, match_status):
             "score_a": score_a,
             "score_b": score_b,
             "match_status": match_status or match.get("status") or "live",
+            "approval_status": "pending",
         },
     )
 
@@ -378,7 +379,7 @@ def _approval_status_label(status):
     labels = {
         "pending": "Pending Verification",
         "approved": "Approved",
-        "returned": "Returned",
+        "returned": "Disapproved",
     }
     return labels.get(status, (status or "pending").replace("_", " ").title())
 

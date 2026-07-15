@@ -7,8 +7,11 @@ class Team(models.Model):
     """Represents a team participating in events"""
     name = models.CharField(max_length=100)
     abbreviation = models.CharField(max_length=10)
-    logo_icon = models.CharField(max_length=50, blank=True,
-        help_text="Short abbreviation shown inside the hexagon logo, e.g. 'IT'")
+    logo_icon = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Emoji, short code, or image URL for the team logo",
+    )
     color = models.CharField(max_length=7, default="#00C5D9",
         help_text="Hex color code, e.g. #FF0000")
     description = models.TextField(blank=True,
@@ -180,6 +183,12 @@ class Candidate(models.Model):
 
 
 class JudgeScore(models.Model):
+    APPROVAL_CHOICES = [
+        ("pending", "Pending"),
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
+    ]
+
     judge = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='scores')
     candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name='scores')
     criterion = models.ForeignKey(Criterion, on_delete=models.CASCADE, related_name='scores')
@@ -187,6 +196,13 @@ class JudgeScore(models.Model):
     is_locked = models.BooleanField(default=False)
     submitted_at = models.DateTimeField(null=True, blank=True)
     verification_id = models.CharField(max_length=50, blank=True)
+    approval_status = models.CharField(
+        max_length=20,
+        choices=APPROVAL_CHOICES,
+        default="pending",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_note = models.CharField(max_length=255, blank=True, default="")
 
     def __str__(self):
         return f"{self.judge.username} - {self.candidate.name} - {self.criterion.name}: {self.score}"

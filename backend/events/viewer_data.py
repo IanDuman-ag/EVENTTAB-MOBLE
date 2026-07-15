@@ -7,7 +7,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from .bracket_data import fetch_bracket_matches
-from .models import Activity, EventCategory, JudgingEvent, Match
+from .models import Activity, EventCategory, JudgingEvent, Match, Team
 from .serializers import MatchSerializer
 
 MONTHS = [
@@ -198,42 +198,155 @@ def _featured_match(matches):
     return upcoming[0] if upcoming else None
 
 
-def _build_team_rankings(matches, sport_filter=None):
+def _match_category_bucket(match):
+    """Map a match into academic | esports | sports | socio_cultural."""
+    ctype = (match.get("category_type") or "").lower().replace("-", "_")
+    if ctype in ("academic", "esports", "sports", "socio_cultural"):
+        return ctype
+    text = " ".join(
+        str(v or "")
+        for v in (
+            match.get("sport"),
+            match.get("event_name"),
+            match.get("title"),
+            match.get("category_name"),
+        )
+    ).lower()
+    if any(t in text for t in ("esport", "mobile legend", "valorant", "dota", "mlbb")):
+        return "esports"
+    if any(
+        t in text
+        for t in (
+            "basketball",
+            "volleyball",
+            "football",
+            "soccer",
+            "tennis",
+            "sport",
+        )
+    ):
+        return "sports"
+    if any(
+        t in text
+        for t in ("dance", "sing", "perform", "music", "art", "cultural", "socio")
+    ):
+        return "socio_cultural"
+    if any(t in text for t in ("academic", "quiz", "debate", "pageant", "orator")):
+        return "academic"
+    return "others"
+
+
+def _team_catalog():
+    """id/name → team fields for logo enrichment."""
+    by_id = {}
+    by_name = {}
+    try:
+        for t in Team.objects.all():
+            payload = {
+                "team_id": t.id,
+                "name": t.name,
+                "abbreviation": t.abbreviation,
+                "logo_icon": t.logo_icon or "",
+                "color": t.color or "#00C5D9",
+            }
+            by_id[t.id] = payload
+            by_name[(t.name or "").strip().lower()] = payload
+            by_name[(t.abbreviation or "").strip().lower()] = payload
+    except Exception:
+        pass
+    return by_id, by_name
+
+
+def _build_team_rankings(matches, sport_filter=None, category_filter=None):
+    from .tabulator_data import approved_bracket_match_ids, approved_legacy_match_ids
+
+    approved_bracket = approved_bracket_match_ids()
+    approved_legacy = approved_legacy_match_ids()
+    by_id, by_name = _team_catalog()
     stats = {}
+    cat_filter = (category_filter or "").lower().strip()
+    if cat_filter in ("all", "overall", "all_events", ""):
+        cat_filter = None
+    sport_filter = (sport_filter or "").lower().strip()
+    if sport_filter in ("all", "overall", ""):
+        sport_filter = None
 
     def ensure_team(team):
         tid = team.get("id") or team.get("name")
         if tid not in stats:
+            catalog = None
+            if team.get("id") is not None:
+                catalog = by_id.get(team.get("id"))
+            if catalog is None:
+                catalog = by_name.get((team.get("name") or "").strip().lower())
+            if catalog is None:
+                catalog = by_name.get((team.get("abbreviation") or "").strip().lower())
             stats[tid] = {
-                "team_id": team.get("id"),
-                "name": team.get("name") or "Team",
-                "abbreviation": team.get("abbreviation") or (team.get("name") or "?")[:4].upper(),
-                "color": team.get("color") or "#00C5D9",
+                "team_id": (catalog or {}).get("team_id") or team.get("id"),
+                "name": (catalog or {}).get("name") or team.get("name") or "Team",
+                "abbreviation": (catalog or {}).get("abbreviation")
+                or team.get("abbreviation")
+                or (team.get("name") or "?")[:4].upper(),
+                "logo_icon": (catalog or {}).get("logo_icon")
+                or team.get("logo_icon")
+                or "",
+                "color": (catalog or {}).get("color")
+                or team.get("color")
+                or "#00C5D9",
                 "sport": "",
+                "category": "",
                 "wins": 0,
                 "losses": 0,
                 "points": 0,
+                "events": 0,
+                "_match_ids": set(),
             }
         return stats[tid]
 
     for match in matches:
         if match.get("status") != "completed":
             continue
-        sport = match.get("sport") or "other"
-        if sport_filter and sport_filter not in ("all", "overall") and sport != sport_filter:
+
+        # Official results only — tabulator-approved submissions.
+        mid = match.get("id")
+        source = match.get("source") or ""
+        is_official = False
+        if source == "bracket" or match.get("bracket_match_id") or "bracket" in str(source):
+            is_official = mid in approved_bracket
+        elif source == "legacy" or match.get("match_id") or source == "match":
+            is_official = mid in approved_legacy
+        else:
+            is_official = mid in approved_bracket or mid in approved_legacy
+        if not is_official:
             continue
+
+        sport = match.get("sport") or "other"
+        bucket = _match_category_bucket(match)
+        if sport_filter and sport != sport_filter:
+            continue
+        if cat_filter and bucket != cat_filter:
+            continue
+
         team_a = match.get("team_a") or {}
         team_b = match.get("team_b") or {}
         score_a = match.get("score_a")
         score_b = match.get("score_b")
         if score_a is None or score_b is None:
             continue
+        # Skip synthetic judging placeholder teams.
+        if team_a.get("abbreviation") == "EVT" and team_b.get("abbreviation") == "LOC":
+            continue
+
         stat_a = ensure_team(team_a)
         stat_b = ensure_team(team_b)
-        stat_a["sport"] = sport
-        stat_b["sport"] = sport
-        stat_a["points"] += score_a
-        stat_b["points"] += score_b
+        for stat in (stat_a, stat_b):
+            stat["sport"] = sport
+            stat["category"] = bucket
+            if mid not in stat["_match_ids"]:
+                stat["_match_ids"].add(mid)
+                stat["events"] += 1
+        stat_a["points"] += int(score_a)
+        stat_b["points"] += int(score_b)
         if score_a > score_b:
             stat_a["wins"] += 1
             stat_b["losses"] += 1
@@ -245,15 +358,20 @@ def _build_team_rankings(matches, sport_filter=None):
     for stat in stats.values():
         played = stat["wins"] + stat["losses"]
         pct = (stat["wins"] / played) if played else 0.0
+        row = {
+            k: v
+            for k, v in stat.items()
+            if k != "_match_ids"
+        }
         rows.append(
             {
-                **stat,
+                **row,
                 "played": played,
                 "pct": round(pct, 3),
                 "pct_display": f".{int(round(pct * 1000)):03d}" if played else "—",
             }
         )
-    rows.sort(key=lambda r: (r["wins"], r["points"]), reverse=True)
+    rows.sort(key=lambda r: (r["points"], r["wins"], r["events"]), reverse=True)
     for idx, row in enumerate(rows, start=1):
         row["rank"] = idx
     return rows
@@ -431,11 +549,26 @@ def _activity_time(created_at):
     return "Just now"
 
 
-def fetch_viewer_rankings(sport_filter=None):
+def fetch_viewer_rankings(sport_filter=None, category_filter=None):
     matches = fetch_combined_matches()
-    rows = _build_team_rankings(matches, sport_filter=sport_filter)
+    rows = _build_team_rankings(
+        matches,
+        sport_filter=sport_filter,
+        category_filter=category_filter,
+    )
     sports = sorted({m.get("sport") or "other" for m in matches if m.get("sport")})
-    return {"rankings": rows, "sports": ["overall", *sports]}
+    categories = [
+        {"id": "all", "label": "All Events", "icon": "grid"},
+        {"id": "academic", "label": "Academic", "icon": "school"},
+        {"id": "esports", "label": "Esports", "icon": "sports_esports"},
+        {"id": "sports", "label": "Sports", "icon": "sports_soccer"},
+        {"id": "socio_cultural", "label": "Socio Cultural", "icon": "theater_comedy"},
+    ]
+    return {
+        "rankings": rows,
+        "sports": ["overall", *sports],
+        "categories": categories,
+    }
 
 
 def fetch_viewer_profile():

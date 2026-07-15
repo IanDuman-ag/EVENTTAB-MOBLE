@@ -104,6 +104,10 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+# Optional absolute CDN/website origin for team images, e.g. https://portal.example.com/media
+MEDIA_BASE_URL = config("MEDIA_BASE_URL", default="")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ---------------------------------------------------------------------------

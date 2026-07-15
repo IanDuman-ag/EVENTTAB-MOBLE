@@ -30,6 +30,7 @@ class AccessCode(models.Model):
     ROLE_CHOICES = [
         ("judge", "Judge"),
         ("scorer", "Scorer"),
+        ("tabulator", "Tabulator"),
     ]
 
     code = models.CharField(max_length=32, unique=True, editable=False)
@@ -70,6 +71,12 @@ class AccessCode(models.Model):
             )
             if self.role == "judge":
                 group, _ = Group.objects.get_or_create(name="Judge")
+                user.groups.add(group)
+            elif self.role == "tabulator":
+                group, _ = Group.objects.get_or_create(name="Tabulator")
+                user.groups.add(group)
+            elif self.role == "scorer":
+                group, _ = Group.objects.get_or_create(name="Scorer")
                 user.groups.add(group)
             self.user = user
 

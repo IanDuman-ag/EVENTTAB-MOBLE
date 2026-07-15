@@ -43,9 +43,12 @@ def viewer_live(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def viewer_rankings(request):
-    """GET /api/events/viewer/rankings/?sport="""
+    """GET /api/events/viewer/rankings/?sport=&category="""
     return Response(
-        fetch_viewer_rankings(sport_filter=request.query_params.get("sport"))
+        fetch_viewer_rankings(
+            sport_filter=request.query_params.get("sport"),
+            category_filter=request.query_params.get("category"),
+        )
     )
 
 

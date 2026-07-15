@@ -24,6 +24,24 @@ class TeamViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = TeamSerializer
     permission_classes = [permissions.AllowAny]
 
+    def _absolute_logo(self, path):
+        raw = (path or "").strip()
+        if not raw:
+            return ""
+        if raw.startswith("http://") or raw.startswith("https://") or raw.startswith("data:"):
+            return raw
+        from django.conf import settings
+
+        media_base = getattr(settings, "MEDIA_BASE_URL", "").rstrip("/")
+        if not media_base:
+            media_base = "/media"
+        cleaned = raw.lstrip("/")
+        if cleaned.startswith("media/"):
+            cleaned = cleaned[len("media/") :]
+        if media_base.startswith("http"):
+            return f"{media_base}/{cleaned}"
+        return f"/media/{cleaned}"
+
     def _teams_fallback_payload(self):
         """Portal DB schema differs from Django models — read real columns."""
         teams = []
@@ -33,7 +51,14 @@ class TeamViewSet(viewsets.ReadOnlyModelViewSet):
                 SELECT t.id,
                        t.name,
                        COALESCE(NULLIF(t.code, ''), d.code, UPPER(LEFT(t.name, 4))),
-                       COALESCE(d.delegation_color, '#00C5D9'),
+                       COALESCE(NULLIF(d.delegation_color, ''), '#00C5D9'),
+                       COALESCE(NULLIF(t.image, ''), NULLIF(d.logo, ''), ''),
+                       COALESCE(NULLIF(t.members::text, ''), '0'),
+                       COALESCE(
+                           NULLIF(d.remarks, ''),
+                           NULLIF(d.name, ''),
+                           CONCAT('Representing ', t.name, '.')
+                       ),
                        COALESCE(t.updated_at, t.created_at)
                 FROM events_team t
                 LEFT JOIN events_department d ON d.id = t.department_id
@@ -41,15 +66,22 @@ class TeamViewSet(viewsets.ReadOnlyModelViewSet):
                 """
             )
             for row in cursor.fetchall():
+                logo = self._absolute_logo(row[4] or "")
+                motto = (row[6] or "").strip()
+                try:
+                    member_count = int(str(row[5] or "0").strip() or "0")
+                except (TypeError, ValueError):
+                    member_count = 0
                 teams.append(
                     {
                         "id": row[0],
                         "name": row[1],
                         "abbreviation": (row[2] or "?")[:10].upper(),
-                        "logo_icon": (row[2] or "")[:10],
+                        "logo_icon": logo,
                         "color": row[3] or "#00C5D9",
-                        "description": "",
-                        "updated_at": row[4].isoformat() if row[4] else None,
+                        "description": motto,
+                        "member_count": member_count,
+                        "updated_at": row[7].isoformat() if row[7] else None,
                     }
                 )
         return teams
@@ -190,21 +222,32 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
 
         results = []
         for candidate in candidates:
-            scores_qs = JudgeScore.objects.filter(candidate=candidate)
+            # Official standings: only tabulator-approved judge scores.
+            scores_qs = JudgeScore.objects.filter(
+                candidate=candidate,
+                approval_status="approved",
+            )
             total = Decimal('0.00')
             for js in scores_qs.select_related('criterion'):
                 total += js.score * js.criterion.weight_percent / Decimal('100')
 
-            is_live = scores_qs.filter(is_locked=False, submitted_at__isnull=False).exists()
+            pending_live = JudgeScore.objects.filter(
+                candidate=candidate,
+                approval_status="pending",
+                submitted_at__isnull=False,
+            ).exists()
 
             results.append({
                 'candidate_id': candidate.id,
                 'name': candidate.name,
                 'number': candidate.number,
                 'total_score': total,
-                'is_live': is_live,
+                'is_live': pending_live,
+                'is_official': scores_qs.exists(),
             })
 
+        # Public leaderboard shows official (approved) results only.
+        results = [r for r in results if r['is_official']]
         results.sort(key=lambda x: x['total_score'], reverse=True)
 
         for i, r in enumerate(results):

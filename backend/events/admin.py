@@ -20,7 +20,7 @@ from django.utils.html import format_html
 from .models import (
     Team, Match, Activity,
     EventCategory, JudgingEvent, Criterion, Candidate, JudgeScore,
-    ScorerSubmission,
+    ScorerSubmission, BracketScorerSubmission,
 )
 
 
@@ -258,9 +258,10 @@ class CandidateAdmin(admin.ModelAdmin):
 @admin.register(JudgeScore)
 class JudgeScoreAdmin(admin.ModelAdmin):
     list_display    = ['judge', 'candidate', 'criterion', 'score',
-                       'is_locked', 'submitted_at']
-    list_filter     = ['is_locked', 'candidate__event']
-    readonly_fields = ['verification_id', 'submitted_at']
+                       'approval_status', 'is_locked', 'submitted_at']
+    list_filter     = ['approval_status', 'is_locked', 'candidate__event']
+    list_editable   = ['approval_status']
+    readonly_fields = ['verification_id', 'submitted_at', 'reviewed_at']
     search_fields   = ['judge__username', 'candidate__name']
 
 
@@ -277,4 +278,21 @@ class ScorerSubmissionAdmin(admin.ModelAdmin):
     ]
     list_filter = ['approval_status', 'match_status', 'match__sport']
     search_fields = ['scorer__username', 'match__title']
+    list_editable = ['approval_status']
+
+
+@admin.register(BracketScorerSubmission)
+class BracketScorerSubmissionAdmin(admin.ModelAdmin):
+    list_display = [
+        'bracket_match_id',
+        'event_id',
+        'scorer',
+        'score_a',
+        'score_b',
+        'match_status',
+        'approval_status',
+        'submitted_at',
+    ]
+    list_filter = ['approval_status', 'match_status']
+    search_fields = ['scorer__username']
     list_editable = ['approval_status']

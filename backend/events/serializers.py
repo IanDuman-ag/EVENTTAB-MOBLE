@@ -89,3 +89,4 @@ class CandidateStandingSerializer(serializers.Serializer):
     number = serializers.IntegerField()
     total_score = serializers.DecimalField(max_digits=10, decimal_places=2)
     is_live = serializers.BooleanField()
+    is_official = serializers.BooleanField(required=False, default=False)

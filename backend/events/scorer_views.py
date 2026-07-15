@@ -153,15 +153,23 @@ def scorer_update_bracket_score(request, match_id):
         return Response({"detail": "Bracket match not found."}, status=status.HTTP_404_NOT_FOUND)
 
     if existing.get("status") == "completed":
-        return Response(
-            {"detail": "Final score already submitted. Scores are locked."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        # Allow resubmit only when tabulator returned the previous submission.
+        returned = BracketScorerSubmission.objects.filter(
+            bracket_match_id=match_id,
+            scorer=request.user,
+            approval_status="returned",
+        ).exists()
+        if not returned:
+            return Response(
+                {"detail": "Final score already submitted. Scores are locked."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     if BracketScorerSubmission.objects.filter(
         bracket_match_id=match_id,
         scorer=request.user,
         match_status="completed",
+        approval_status__in=["pending", "approved"],
     ).exists():
         return Response(
             {"detail": "You already submitted the final score for this match."},

@@ -131,20 +131,30 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
 
         results = []
         for candidate in candidates:
-            scores_qs = JudgeScore.objects.filter(candidate=candidate).select_related('criterion')
+            scores_qs = JudgeScore.objects.filter(
+                candidate=candidate,
+                approval_status="approved",
+            ).select_related('criterion')
             total = Decimal('0.00')
             for js in scores_qs:
                 if js.criterion.max_score > 0:
                     total += js.score * js.criterion.weight_percent / js.criterion.max_score
-            is_live = scores_qs.filter(is_locked=False, submitted_at__isnull=False).exists()
+            pending_live = JudgeScore.objects.filter(
+                candidate=candidate,
+                approval_status="pending",
+                submitted_at__isnull=False,
+            ).exists()
             results.append({
                 'candidate_id': candidate.id,
                 'name': candidate.name,
                 'number': candidate.number,
                 'total_score': total,
-                'is_live': is_live,
+                'is_live': pending_live,
+                'is_official': scores_qs.exists(),
             })
 
+        # Official leaderboard: only candidates with tabulator-approved scores.
+        results = [r for r in results if r['is_official']]
         results.sort(key=lambda x: x['total_score'], reverse=True)
         for i, r in enumerate(results):
             r['rank'] = i + 1
@@ -168,9 +178,20 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
         except Candidate.DoesNotExist:
             return Response({'detail': 'Candidate not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Prevent re-submission
-        if JudgeScore.objects.filter(judge=request.user, candidate=candidate, is_locked=True).exists():
-            return Response({'detail': 'Scores already submitted and locked.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Prevent re-submission while pending/approved (allow after reject).
+        existing = JudgeScore.objects.filter(
+            judge=request.user, candidate=candidate
+        )
+        if existing.filter(approval_status="approved").exists():
+            return Response(
+                {'detail': 'Scores already approved by tabulator.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if existing.filter(approval_status="pending", is_locked=True).exists():
+            return Response(
+                {'detail': 'Scores already submitted and awaiting tabulator review.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         verification_id = str(uuid.uuid4())[:13].upper()
         submitted_at = timezone.now()
@@ -193,9 +214,12 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
                 criterion=criterion,
                 defaults={
                     'score': score_value,
-                    'is_locked': True,
+                    'is_locked': True,  # lock edit until review; not official yet
                     'submitted_at': submitted_at,
                     'verification_id': verification_id,
+                    'approval_status': 'pending',
+                    'reviewed_at': None,
+                    'review_note': '',
                 }
             )
             created_scores.append(judge_score)
@@ -220,6 +244,8 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
             'total_score': round(total_score, 1),
             'breakdown': breakdown,
             'is_locked': True,
+            'approval_status': 'pending',
+            'status_label': 'PENDING VERIFICATION',
         })
 
     # ── My scores (pre-fill or check lock status) ─────────────────────────────

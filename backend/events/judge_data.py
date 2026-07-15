@@ -469,9 +469,14 @@ def _weighted_total(scores_qs):
 def _score_review_status(scores_qs):
     if not scores_qs.exists():
         return "pending"
-    if scores_qs.filter(is_locked=True).exists():
+    statuses = list(scores_qs.values_list("approval_status", flat=True))
+    if any(s == "rejected" for s in statuses):
+        return "rejected"
+    if statuses and all(s == "approved" for s in statuses):
         return "approved"
-    if scores_qs.filter(is_locked=False, submitted_at__isnull=False).exists():
+    if any(s == "pending" for s in statuses) or scores_qs.filter(
+        submitted_at__isnull=False
+    ).exists():
         return "pending"
     return "pending"
 
@@ -506,6 +511,18 @@ def fetch_score_history(user, status_filter=None, date_from=None, date_to=None):
         if date_to and event_date > date_to:
             continue
 
+        criteria_count = scores_qs.values("criterion_id").distinct().count()
+        # Judges only see criteria-based results (not match/score-only events).
+        if criteria_count <= 0:
+            continue
+        scoring_method = (
+            getattr(event, "scoring_method", None)
+            or getattr(event, "scoring_type", None)
+            or ""
+        )
+        if str(scoring_method).lower() in ("match", "score", "score_based", "bracket"):
+            continue
+
         total = _weighted_total(scores_qs)
         max_score = 100.0
         meta = _category_meta(event.category.name if event.category_id else "Event")
@@ -523,14 +540,14 @@ def fetch_score_history(user, status_filter=None, date_from=None, date_to=None):
                 "venue": event.venue,
                 "subject_type": "Team" if "team" in candidate.name.lower() else "Participant",
                 "subject_name": f"#{candidate.number} – {candidate.name}",
-                "criteria_count": scores_qs.values("criterion_id").distinct().count(),
+                "criteria_count": criteria_count,
                 "score": total,
                 "max_score": max_score,
                 "status": review_status,
                 "status_label": {
                     "approved": "APPROVED",
                     "pending": "PENDING REVIEW",
-                    "rejected": "REJECTED",
+                    "rejected": "DISAPPROVED",
                 }.get(review_status, review_status.upper()),
                 "submitted_at": submitted_at.isoformat() if submitted_at else None,
                 "submitted_at_display": (
@@ -538,7 +555,7 @@ def fetch_score_history(user, status_filter=None, date_from=None, date_to=None):
                     if submitted_at
                     else "—"
                 ),
-                "processed_by": "Tabulator" if review_status == "approved" else None,
+                "processed_by": "Tabulator" if review_status in ("approved", "rejected") else None,
             }
         )
 

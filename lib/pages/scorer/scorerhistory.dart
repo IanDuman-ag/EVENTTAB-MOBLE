@@ -113,10 +113,11 @@ class _ScorerHistoryBodyState extends State<ScorerHistoryBody> {
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     final filtered = _filteredEntries;
 
     return ColoredBox(
-      color: scorerWhite,
+      color: c.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -125,15 +126,15 @@ class _ScorerHistoryBodyState extends State<ScorerHistoryBody> {
             height: 3,
             color: scorerGold,
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 18, 20, 0),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Score History',
                   style: TextStyle(
-                    color: scorerNavy,
+                    color: c.text,
                     fontSize: 24,
                     fontWeight: FontWeight.w900,
                   ),
@@ -141,7 +142,7 @@ class _ScorerHistoryBodyState extends State<ScorerHistoryBody> {
                 SizedBox(height: 4),
                 Text(
                   'Submitted scores, including tabulator-approved results.',
-                  style: TextStyle(color: scorerMuted, fontSize: 13),
+                  style: TextStyle(color: c.muted, fontSize: 13),
                 ),
               ],
             ),
@@ -159,22 +160,22 @@ class _ScorerHistoryBodyState extends State<ScorerHistoryBody> {
                 Expanded(
                   child: TextField(
                     controller: _searchCtrl,
-                    style: const TextStyle(color: scorerNavy),
+                    style: TextStyle(color: c.text),
                     onChanged: _onSearchChanged,
                     decoration: InputDecoration(
                       hintText: 'Search match, team, venue or score...',
-                      hintStyle: const TextStyle(color: scorerMuted),
-                      prefixIcon: const Icon(Icons.search_rounded,
-                          color: scorerMuted),
+                      hintStyle: TextStyle(color: c.muted),
+                      prefixIcon: Icon(Icons.search_rounded,
+                          color: c.muted),
                       suffixIcon: _search.isEmpty
                           ? null
                           : IconButton(
-                              icon: const Icon(Icons.clear_rounded,
-                                  color: scorerMuted),
+                              icon: Icon(Icons.clear_rounded,
+                                  color: c.muted),
                               onPressed: _clearSearch,
                             ),
                       filled: true,
-                      fillColor: const Color(0xFFEEEDF5),
+                      fillColor: c.chip,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 14,
@@ -200,11 +201,11 @@ class _ScorerHistoryBodyState extends State<ScorerHistoryBody> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: scorerWhite,
+                    color: c.card,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: scorerBorder),
+                    border: Border.all(color: c.border),
                   ),
-                  child: const Icon(Icons.tune_rounded, color: scorerNavy),
+                  child: Icon(Icons.tune_rounded, color: c.text),
                 ),
               ],
             ),
@@ -227,7 +228,11 @@ class _ScorerHistoryBodyState extends State<ScorerHistoryBody> {
                               _search.trim().isEmpty
                                   ? (_tab == 'approved'
                                       ? 'No approved scores yet.'
-                                      : 'No submitted results yet.')
+                                      : _tab == 'pending'
+                                          ? 'No scores pending review.'
+                                          : _tab == 'returned'
+                                              ? 'No disapproved scores.'
+                                              : 'No submitted results yet.')
                                   : 'No results match your search.',
                               style: const TextStyle(color: scorerMuted),
                             ),
@@ -264,11 +269,12 @@ class _HistoryTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     final tabs = [
       ('all', 'All'),
       ('approved', 'Approved'),
       ('pending', 'Pending'),
-      ('returned', 'Returned'),
+      ('returned', 'Disapproved'),
     ];
 
     return SingleChildScrollView(
@@ -287,16 +293,16 @@ class _HistoryTabs extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(
-                  color: isActive ? scorerGold : scorerWhite,
+                  color: isActive ? scorerGold : c.card,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isActive ? scorerGold : scorerBorder,
+                    color: isActive ? scorerGold : c.border,
                   ),
                 ),
                 child: Text(
                   '${tab.$2} ($count)',
                   style: TextStyle(
-                    color: isActive ? scorerWhite : scorerNavy,
+                    color: isActive ? scorerWhite : c.text,
                     fontWeight: FontWeight.w800,
                     fontSize: 12,
                   ),
@@ -321,12 +327,15 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     final status = entry['status'] as String? ?? 'pending';
     final scoreA = entry['score_a'];
     final scoreB = entry['score_b'];
     final icon = scorerSportIcon(entry['sport_icon'] as String?);
     final teams = entry['teams_label'] as String? ?? '';
-    final stripe = accentNavy ? scorerNavy : scorerGold;
+    final stripe = accentNavy
+        ? (c.isDark ? scorerGold : scorerNavy)
+        : scorerGold;
 
     Color statusColor;
     switch (status) {
@@ -341,11 +350,11 @@ class _HistoryCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: scorerWhite,
+        color: c.card,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: scorerNavy.withValues(alpha: 0.07),
+            color: Colors.black.withValues(alpha: c.isDark ? 0.35 : 0.07),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -368,7 +377,7 @@ class _HistoryCard extends StatelessWidget {
                       child: Icon(
                         icon,
                         size: 68,
-                        color: scorerNavy.withValues(alpha: 0.05),
+                        color: c.text.withValues(alpha: 0.05),
                       ),
                     ),
                     Row(
@@ -376,8 +385,12 @@ class _HistoryCard extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 20,
-                          backgroundColor: scorerNavy,
-                          child: Icon(icon, color: scorerGold, size: 18),
+                          backgroundColor: c.isDark ? scorerGold : scorerNavy,
+                          child: Icon(
+                            icon,
+                            color: c.isDark ? scorerNavy : scorerGold,
+                            size: 18,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -386,21 +399,26 @@ class _HistoryCard extends StatelessWidget {
                             children: [
                               Text(
                                 entry['match_title'] as String? ?? '',
-                                style: const TextStyle(
-                                  color: scorerNavy,
+                                style: TextStyle(
+                                  color: c.text,
                                   fontWeight: FontWeight.w800,
                                   fontSize: 14,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text.rich(
-                                TextSpan(children: scorerTeamsSpans(teams)),
+                                TextSpan(
+                                  children: scorerTeamsSpans(
+                                    teams,
+                                    textColor: c.text,
+                                  ),
+                                ),
                               ),
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Icon(Icons.calendar_today_rounded,
-                                      size: 12, color: scorerMuted),
+                                  Icon(Icons.calendar_today_rounded,
+                                      size: 12, color: c.muted),
                                   const SizedBox(width: 4),
                                   Flexible(
                                     child: Text(
@@ -412,21 +430,21 @@ class _HistoryCard extends StatelessWidget {
                                               (v as String?)?.isNotEmpty ==
                                               true)
                                           .join(' • '),
-                                      style: const TextStyle(
-                                        color: scorerMuted,
+                                      style: TextStyle(
+                                        color: c.muted,
                                         fontSize: 11,
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  const Icon(Icons.location_on_outlined,
-                                      size: 12, color: scorerMuted),
+                                  Icon(Icons.location_on_outlined,
+                                      size: 12, color: c.muted),
                                   const SizedBox(width: 2),
                                   Text(
                                     entry['venue'] as String? ?? '—',
-                                    style: const TextStyle(
-                                      color: scorerMuted,
+                                    style: TextStyle(
+                                      color: c.muted,
                                       fontSize: 11,
                                     ),
                                   ),
@@ -472,9 +490,11 @@ class _HistoryCard extends StatelessWidget {
                             Text(
                               status == 'approved'
                                   ? 'Approved'
-                                  : 'Submitted',
-                              style: const TextStyle(
-                                color: scorerMuted,
+                                  : status == 'returned'
+                                      ? 'Disapproved'
+                                      : 'Pending',
+                              style: TextStyle(
+                                color: c.muted,
                                 fontSize: 10,
                               ),
                             ),

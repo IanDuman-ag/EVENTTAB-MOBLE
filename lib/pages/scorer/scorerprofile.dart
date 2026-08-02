@@ -85,27 +85,28 @@ class _ScorerProfileBodyState extends State<ScorerProfileBody> {
     final p = _profile!;
     final stats = p['stats'] as Map<String, dynamic>? ?? {};
     final name = p['display_name'] as String? ?? 'Scorer';
+    final c = ScorerThemeScope.paletteOf(context);
 
     return ColoredBox(
-      color: scorerBg,
+      color: c.bg,
       child: RefreshIndicator(
         color: scorerGold,
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
           children: [
-            const Text(
+            Text(
               'My Profile',
               style: TextStyle(
-                color: scorerNavy,
+                color: c.text,
                 fontSize: 24,
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'View your account summary.',
-              style: TextStyle(color: scorerMuted, fontSize: 13),
+              style: TextStyle(color: c.muted, fontSize: 13),
             ),
             const SizedBox(height: 18),
 
@@ -351,14 +352,17 @@ class _StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Container(
+      child: Builder(
+        builder: (context) {
+          final c = ScorerThemeScope.paletteOf(context);
+          return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: scorerWhite,
+          color: c.card,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: scorerNavy.withValues(alpha: 0.06),
+              color: Colors.black.withValues(alpha: c.isDark ? 0.3 : 0.06),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -386,14 +390,16 @@ class _StatTile extends StatelessWidget {
             ),
             Text(
               label,
-              style: const TextStyle(
-                color: scorerMuted,
+              style: TextStyle(
+                color: c.muted,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ],
         ),
+      );
+        },
       ),
     );
   }

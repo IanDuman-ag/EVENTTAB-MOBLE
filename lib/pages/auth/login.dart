@@ -18,6 +18,7 @@ const _kMuted   = Color(0xFF8B8D91);
 
 /// Users enter an admin-issued access code from the backend.
 /// Judges go to `lib/pages/judges/`, scorers go to `lib/pages/scorer/`.
+/// Tabulator review is handled in the admin website, not this app.
 /// "Continue as Guest" skips auth and goes to HomePage.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, this.onLogin});
@@ -93,6 +94,10 @@ class _LoginPageState extends State<LoginPage> {
               builder: (_) => const ScorerShell(),
             ),
           );
+        case 'tabulator':
+          AuthSession.clear();
+          setState(() => _errorMessage =
+              'Tabulator access is on the admin website, not this app.');
         default:
           AuthSession.clear();
           setState(() => _errorMessage =

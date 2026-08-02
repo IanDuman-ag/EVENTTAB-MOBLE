@@ -72,12 +72,13 @@ class _ScorerNotificationSheetState extends State<_ScorerNotificationSheet> {
   @override
   Widget build(BuildContext context) {
     final maxHeight = MediaQuery.of(context).size.height * 0.72;
+    final c = ScorerThemeScope.paletteOf(context);
 
     return Container(
       constraints: BoxConstraints(maxHeight: maxHeight),
-      decoration: const BoxDecoration(
-        color: scorerCard,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      decoration: BoxDecoration(
+        color: c.card,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -87,7 +88,7 @@ class _ScorerNotificationSheetState extends State<_ScorerNotificationSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: scorerBorder,
+              color: c.border,
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -95,11 +96,11 @@ class _ScorerNotificationSheetState extends State<_ScorerNotificationSheet> {
             padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Notifications',
                     style: TextStyle(
-                      color: scorerNavy,
+                      color: c.text,
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                     ),
@@ -116,12 +117,12 @@ class _ScorerNotificationSheetState extends State<_ScorerNotificationSheet> {
                   ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded, color: scorerMuted),
+                  icon: Icon(Icons.close_rounded, color: c.muted),
                 ),
               ],
             ),
           ),
-          const Divider(color: scorerBorder, height: 1),
+          Divider(color: c.border, height: 1),
           Flexible(
             child: _isLoading
                 ? const Padding(
@@ -153,30 +154,30 @@ class _ScorerNotificationSheetState extends State<_ScorerNotificationSheet> {
                         ),
                       )
                     : _notifications.isEmpty
-                        ? const Padding(
-                            padding: EdgeInsets.fromLTRB(24, 48, 24, 48),
+                        ? Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 48, 24, 48),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
                                   Icons.notifications_none_rounded,
-                                  color: scorerMuted,
+                                  color: c.muted,
                                   size: 40,
                                 ),
-                                SizedBox(height: 12),
+                                const SizedBox(height: 12),
                                 Text(
                                   'No notifications yet',
                                   style: TextStyle(
-                                    color: scorerNavy,
+                                    color: c.text,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                SizedBox(height: 4),
+                                const SizedBox(height: 4),
                                 Text(
                                   'New match assignments will show up here.',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    color: scorerMuted,
+                                    color: c.muted,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -213,14 +214,15 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     final isUnread = notification['is_unread'] == true;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: scorerBg.withValues(alpha: 0.55),
+        color: c.chip,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isUnread ? scorerGold.withValues(alpha: 0.55) : scorerBorder,
+          color: isUnread ? scorerGold.withValues(alpha: 0.55) : c.border,
         ),
       ),
       child: Row(
@@ -246,8 +248,8 @@ class _NotificationTile extends StatelessWidget {
               children: [
                 Text(
                   notification['title'] as String? ?? '',
-                  style: const TextStyle(
-                    color: scorerNavy,
+                  style: TextStyle(
+                    color: c.text,
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
                   ),
@@ -256,7 +258,7 @@ class _NotificationTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     notification['body'] as String,
-                    style: const TextStyle(color: scorerMuted, fontSize: 12),
+                    style: TextStyle(color: c.muted, fontSize: 12),
                   ),
                 ],
               ],
@@ -265,7 +267,7 @@ class _NotificationTile extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             notification['time_display'] as String? ?? '',
-            style: const TextStyle(color: scorerMuted, fontSize: 11),
+            style: TextStyle(color: c.muted, fontSize: 11),
           ),
         ],
       ),

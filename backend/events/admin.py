@@ -20,6 +20,7 @@ from django.utils.html import format_html
 from .models import (
     Team, Match, Activity,
     EventCategory, JudgingEvent, Criterion, Candidate, JudgeScore,
+    JudgingStage, CandidateStageEligibility,
     ScorerSubmission, BracketScorerSubmission,
 )
 
@@ -219,6 +220,12 @@ class EventCategoryAdmin(admin.ModelAdmin):
 # JudgingEvent  (with inline Criteria + Candidates)
 # ---------------------------------------------------------------------------
 
+class JudgingStageInline(admin.TabularInline):
+    model = JudgingStage
+    extra = 0
+    fields = ['order', 'name', 'weight_percent', 'status', 'is_active', 'qualifier_count']
+
+
 @admin.register(JudgingEvent)
 class JudgingEventAdmin(admin.ModelAdmin):
     list_display     = ['title', 'category', 'date', 'time', 'venue', 'status',
@@ -226,7 +233,11 @@ class JudgingEventAdmin(admin.ModelAdmin):
     list_filter      = ['status', 'category']
     search_fields    = ['title', 'venue']
     filter_horizontal = ['assigned_judges']
-    inlines          = [CriterionInline, CandidateInline]
+    inlines          = [JudgingStageInline, CriterionInline, CandidateInline]
+    fields = [
+        'title', 'category', 'date', 'time', 'venue', 'status',
+        'faculty_in_charge', 'description', 'instructions', 'assigned_judges',
+    ]
 
     @admin.display(description='Candidates')
     def candidate_count(self, obj):
@@ -258,11 +269,25 @@ class CandidateAdmin(admin.ModelAdmin):
 @admin.register(JudgeScore)
 class JudgeScoreAdmin(admin.ModelAdmin):
     list_display    = ['judge', 'candidate', 'criterion', 'score',
-                       'approval_status', 'is_locked', 'submitted_at']
-    list_filter     = ['approval_status', 'is_locked', 'candidate__event']
+                       'approval_status', 'is_locked', 'is_draft', 'submitted_at']
+    list_filter     = ['approval_status', 'is_locked', 'is_draft', 'candidate__event']
     list_editable   = ['approval_status']
-    readonly_fields = ['verification_id', 'submitted_at', 'reviewed_at']
+    readonly_fields = ['verification_id', 'submitted_at', 'reviewed_at', 'previous_score']
     search_fields   = ['judge__username', 'candidate__name']
+
+
+@admin.register(JudgingStage)
+class JudgingStageAdmin(admin.ModelAdmin):
+    list_display = ['name', 'event', 'order', 'status', 'is_active', 'qualifier_count']
+    list_filter = ['status', 'is_active', 'event']
+    list_editable = ['status', 'is_active']
+
+
+@admin.register(CandidateStageEligibility)
+class CandidateStageEligibilityAdmin(admin.ModelAdmin):
+    list_display = ['stage', 'candidate', 'is_qualified']
+    list_filter = ['is_qualified', 'stage__event']
+    list_editable = ['is_qualified']
 
 
 @admin.register(ScorerSubmission)

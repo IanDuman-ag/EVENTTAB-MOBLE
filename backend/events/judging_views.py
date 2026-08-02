@@ -8,7 +8,8 @@ from rest_framework.response import Response
 from .models import EventCategory, JudgingEvent, Criterion, Candidate, JudgeScore
 from .judging_serializers import (
     EventCategorySerializer, JudgingEventListSerializer,
-    JudgingEventDetailSerializer, JudgeScoreSerializer, SubmitScoresSerializer
+    JudgingEventDetailSerializer, JudgeScoreSerializer,
+    SubmitScoresSerializer, SaveDraftSerializer,
 )
 from .serializers import CandidateStandingSerializer
 
@@ -78,6 +79,39 @@ def judge_notifications(request):
 
         if len(seen_candidates) >= 5:
             break
+
+    # Returned for correction
+    returned = JudgeScore.objects.filter(
+        judge=user, approval_status="rejected"
+    ).select_related("candidate", "candidate__event").order_by("-reviewed_at")
+    seen_ret = set()
+    for js in returned:
+        key = js.candidate_id
+        if key in seen_ret:
+            continue
+        seen_ret.add(key)
+        notifications.insert(
+            0,
+            {
+                "id": f"returned_{js.candidate_id}",
+                "icon": "info",
+                "icon_color": "#E53935",
+                "title": "Score returned for correction",
+                "body": (
+                    f'Your score for {js.candidate.name} in "{js.candidate.event.title}" '
+                    f'was returned. Reason: {js.review_note or "Please revise and resubmit."}'
+                ),
+                "time": (
+                    js.reviewed_at.isoformat()
+                    if js.reviewed_at
+                    else (js.submitted_at.isoformat() if js.submitted_at else "")
+                ),
+                "is_unread": True,
+                "event_id": js.candidate.event_id,
+                "candidate_id": js.candidate_id,
+                "type": "returned",
+            },
+        )
 
     # Sort: unread first, then by time descending
     notifications.sort(key=lambda n: (not n['is_unread'], n['time']), reverse=False)
@@ -162,10 +196,84 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = CandidateStandingSerializer(results, many=True)
         return Response(serializer.data)
 
+    # ── Save draft (unlocked, not official) ──────────────────────────────────
+    @action(detail=True, methods=['post'])
+    def save_draft(self, request, pk=None):
+        event = self.get_object()
+        if not event.assigned_judges.filter(id=request.user.id).exists() and not (
+            request.user.is_staff or request.user.is_superuser
+        ):
+            return Response({'detail': 'Not assigned to this event.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = SaveDraftSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        candidate_id = serializer.validated_data['candidate_id']
+        scores_data = serializer.validated_data['scores']
+        draft_step = serializer.validated_data.get('draft_step') or 0
+
+        try:
+            candidate = Candidate.objects.get(id=candidate_id, event=event)
+        except Candidate.DoesNotExist:
+            return Response({'detail': 'Candidate not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        existing = JudgeScore.objects.filter(judge=request.user, candidate=candidate)
+        if existing.filter(approval_status="approved").exists():
+            return Response({'detail': 'Scores already approved.'}, status=status.HTTP_400_BAD_REQUEST)
+        if existing.filter(approval_status="pending", is_locked=True, is_draft=False).exists():
+            return Response(
+                {'detail': 'Scores already submitted. Waiting for review.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        active_stage = event.stages.filter(is_active=True).first()
+        saved = 0
+        for item in scores_data:
+            try:
+                criterion = Criterion.objects.get(id=item['criterion_id'], event=event)
+            except Criterion.DoesNotExist:
+                continue
+            score_value = float(item['score'])
+            min_s = float(criterion.min_score or 0)
+            max_s = float(criterion.max_score)
+            score_value = min(max(score_value, min_s), max_s)
+            comment = item.get('comment') or ''
+            JudgeScore.objects.update_or_create(
+                judge=request.user,
+                candidate=candidate,
+                criterion=criterion,
+                defaults={
+                    'score': score_value,
+                    'comment': comment,
+                    'is_locked': False,
+                    'is_draft': True,
+                    'draft_step': draft_step,
+                    'submitted_at': None,
+                    'verification_id': '',
+                    'approval_status': 'pending',
+                    'stage': active_stage,
+                },
+            )
+            saved += 1
+
+        return Response({
+            'detail': 'Draft saved successfully.',
+            'saved_count': saved,
+            'draft_step': draft_step,
+            'scoring_status': 'draft',
+            'status_label': 'Draft Saved',
+        })
+
     # ── Submit scores (locks permanently) ────────────────────────────────────
     @action(detail=True, methods=['post'])
     def submit_scores(self, request, pk=None):
         event = self.get_object()
+        if not event.assigned_judges.filter(id=request.user.id).exists() and not (
+            request.user.is_staff or request.user.is_superuser
+        ):
+            return Response({'detail': 'Not assigned to this event.'}, status=status.HTTP_403_FORBIDDEN)
+
         serializer = SubmitScoresSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -187,26 +295,57 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
                 {'detail': 'Scores already approved by tabulator.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if existing.filter(approval_status="pending", is_locked=True).exists():
+        if existing.filter(approval_status="pending", is_locked=True, is_draft=False).exists():
             return Response(
                 {'detail': 'Scores already submitted and awaiting tabulator review.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Validate all required criteria present
+        criteria = list(Criterion.objects.filter(event=event).order_by('order', 'id'))
+        active_stage = event.stages.filter(is_active=True).first()
+        if active_stage:
+            stage_criteria = [c for c in criteria if c.stage_id in (None, active_stage.id)]
+            if stage_criteria:
+                criteria = stage_criteria
+
+        by_id = {int(item['criterion_id']): item for item in scores_data}
+        for criterion in criteria:
+            item = by_id.get(criterion.id)
+            if item is None:
+                return Response(
+                    {'detail': f'Missing score for criterion "{criterion.name}".'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            score_value = float(item['score'])
+            min_s = float(criterion.min_score or 0)
+            max_s = float(criterion.max_score)
+            if score_value < min_s or score_value > max_s:
+                return Response(
+                    {'detail': f'Score for "{criterion.name}" must be between {min_s} and {max_s}.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            comment = (item.get('comment') or '').strip()
+            need_comment = criterion.comment_required
+            thr = criterion.low_score_comment_threshold
+            if thr is not None and score_value <= float(thr):
+                need_comment = True
+            if need_comment and not comment:
+                return Response(
+                    {'detail': f'Comment required for criterion "{criterion.name}".'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         verification_id = str(uuid.uuid4())[:13].upper()
         submitted_at = timezone.now()
         created_scores = []
 
-        for score_item in scores_data:
-            criterion_id = score_item['criterion_id']
-            score_value = float(score_item['score'])
-
-            try:
-                criterion = Criterion.objects.get(id=criterion_id, event=event)
-            except Criterion.DoesNotExist:
-                continue
-
-            score_value = min(max(score_value, 0), float(criterion.max_score))
+        for criterion in criteria:
+            item = by_id[criterion.id]
+            score_value = float(item['score'])
+            comment = item.get('comment') or ''
+            prev = existing.filter(criterion=criterion).first()
+            previous_score = prev.score if prev and prev.is_locked else None
 
             judge_score, _ = JudgeScore.objects.update_or_create(
                 judge=request.user,
@@ -214,17 +353,21 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
                 criterion=criterion,
                 defaults={
                     'score': score_value,
-                    'is_locked': True,  # lock edit until review; not official yet
+                    'comment': comment,
+                    'is_locked': True,
+                    'is_draft': False,
+                    'draft_step': 0,
                     'submitted_at': submitted_at,
                     'verification_id': verification_id,
                     'approval_status': 'pending',
                     'reviewed_at': None,
                     'review_note': '',
+                    'previous_score': previous_score,
+                    'stage': active_stage,
                 }
             )
             created_scores.append(judge_score)
 
-        # Build response with weighted breakdown
         total_score = 0
         breakdown = []
         for js in created_scores:
@@ -236,6 +379,7 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
                 'max_score': float(js.criterion.max_score),
                 'weight': float(js.criterion.weight_percent),
                 'weighted_score': round(weighted, 2),
+                'comment': js.comment,
             })
 
         return Response({
@@ -246,6 +390,7 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
             'is_locked': True,
             'approval_status': 'pending',
             'status_label': 'PENDING VERIFICATION',
+            'scoring_status': 'submitted',
         })
 
     # ── My scores (pre-fill or check lock status) ─────────────────────────────

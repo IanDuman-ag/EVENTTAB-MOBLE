@@ -1,21 +1,107 @@
 import 'package:flutter/material.dart';
 
-/// Scorer portal light theme — navy / gold / white (mockup-accurate).
-const scorerNavy = Color(0xFF211D5A);
+/// Shared accents (same in light & dark).
 const scorerGold = Color(0xFFF5A900);
+const scorerGreen = Color(0xFF2E9B4F);
+const scorerRed = Color(0xFFE53935);
+const scorerBlue = Color(0xFF3D6BFF);
+const scorerCyan = scorerGold;
+const scorerPurple = scorerGold;
+const scorerOrange = scorerGold;
+
+/// Light defaults (kept for older screens that still use consts).
+const scorerNavy = Color(0xFF211D5A);
 const scorerWhite = Color(0xFFFFFFFF);
 const scorerBg = Color(0xFFF5F4FA);
 const scorerCard = Color(0xFFFFFFFF);
 const scorerBorder = Color(0xFFE4E2F0);
 const scorerMuted = Color(0xFF8A87A5);
 const scorerText = Color(0xFF211D5A);
-const scorerCyan = Color(0xFFF5A900);
-const scorerPurple = Color(0xFFF5A900); // primary accent alias
-const scorerGreen = Color(0xFF2E9B4F);
-const scorerOrange = Color(0xFFF5A900);
-const scorerRed = Color(0xFFE53935);
-const scorerBlue = Color(0xFF3D6BFF);
 const scorerCream = Color(0xFFFFF6E5);
+
+class ScorerPalette {
+  const ScorerPalette({
+    required this.isDark,
+    required this.bg,
+    required this.card,
+    required this.border,
+    required this.text,
+    required this.muted,
+    required this.cream,
+    required this.surface,
+    required this.chip,
+    required this.headerBg,
+  });
+
+  final bool isDark;
+  final Color bg;
+  final Color card;
+  final Color border;
+  final Color text;
+  final Color muted;
+  final Color cream;
+  final Color surface;
+  final Color chip;
+  final Color headerBg;
+
+  static const light = ScorerPalette(
+    isDark: false,
+    bg: Color(0xFFF5F4FA),
+    card: Color(0xFFFFFFFF),
+    border: Color(0xFFE4E2F0),
+    text: Color(0xFF211D5A),
+    muted: Color(0xFF8A87A5),
+    cream: Color(0xFFFFF6E5),
+    surface: Color(0xFFFFFFFF),
+    chip: Color(0xFFEEEDF5),
+    headerBg: Color(0xFFFFFFFF),
+  );
+
+  static const dark = ScorerPalette(
+    isDark: true,
+    bg: Color(0xFF0B0B12),
+    card: Color(0xFF17131F),
+    border: Color(0xFF2A2433),
+    text: Color(0xFFF5F4FA),
+    muted: Color(0xFF9A96B0),
+    cream: Color(0xFF2A2418),
+    surface: Color(0xFF121018),
+    chip: Color(0xFF221E2C),
+    headerBg: Color(0xFF17131F),
+  );
+}
+
+class ScorerThemeScope extends InheritedWidget {
+  const ScorerThemeScope({
+    super.key,
+    required this.isDark,
+    required this.onToggle,
+    required super.child,
+  });
+
+  final bool isDark;
+  final VoidCallback onToggle;
+
+  ScorerPalette get colors => isDark ? ScorerPalette.dark : ScorerPalette.light;
+
+  static ScorerThemeScope? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<ScorerThemeScope>();
+  }
+
+  static ScorerThemeScope of(BuildContext context) {
+    final scope = maybeOf(context);
+    assert(scope != null, 'ScorerThemeScope not found in context');
+    return scope!;
+  }
+
+  static ScorerPalette paletteOf(BuildContext context) {
+    return maybeOf(context)?.colors ?? ScorerPalette.light;
+  }
+
+  @override
+  bool updateShouldNotify(ScorerThemeScope oldWidget) =>
+      isDark != oldWidget.isDark;
+}
 
 String scorerGreeting() {
   final hour = DateTime.now().hour;
@@ -56,14 +142,19 @@ IconData scorerSportIcon(String? sport) {
 }
 
 /// Split "A vs B" so "vs" can be styled in gold.
-List<InlineSpan> scorerTeamsSpans(String label, {double fontSize = 13}) {
+List<InlineSpan> scorerTeamsSpans(
+  String label, {
+  double fontSize = 13,
+  Color? textColor,
+}) {
+  final text = textColor ?? scorerNavy;
   final parts = label.split(RegExp(r'\s+vs\s+', caseSensitive: false));
   if (parts.length < 2) {
     return [
       TextSpan(
         text: label,
         style: TextStyle(
-          color: scorerNavy,
+          color: text,
           fontSize: fontSize,
           fontWeight: FontWeight.w600,
         ),
@@ -74,7 +165,7 @@ List<InlineSpan> scorerTeamsSpans(String label, {double fontSize = 13}) {
     TextSpan(
       text: parts.first.trim(),
       style: TextStyle(
-        color: scorerNavy,
+        color: text,
         fontSize: fontSize,
         fontWeight: FontWeight.w700,
       ),
@@ -90,7 +181,7 @@ List<InlineSpan> scorerTeamsSpans(String label, {double fontSize = 13}) {
     TextSpan(
       text: parts.sublist(1).join(' vs ').trim(),
       style: TextStyle(
-        color: scorerNavy,
+        color: text,
         fontSize: fontSize,
         fontWeight: FontWeight.w700,
       ),

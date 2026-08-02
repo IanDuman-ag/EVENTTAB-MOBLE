@@ -4,7 +4,7 @@ import 'jevent_detail.dart';
 import 'judge_api.dart';
 import 'judge_theme.dart';
 import 'judge_widgets.dart';
-import 'jscore.dart';
+import 'jscoring_wizard.dart';
 
 class JudgeViewAssignmentPage extends StatefulWidget {
   const JudgeViewAssignmentPage({
@@ -54,7 +54,7 @@ class _JudgeViewAssignmentPageState extends State<JudgeViewAssignmentPage> {
     }
   }
 
-  void _startScoring() {
+  void _viewContestants() {
     final participants = (_data!['participants'] as List? ?? [])
         .cast<Map<String, dynamic>>();
     if (participants.isEmpty) {
@@ -66,18 +66,17 @@ class _JudgeViewAssignmentPageState extends State<JudgeViewAssignmentPage> {
       return;
     }
 
-    final eventPayload = {
-      'id': widget.judgingEventId,
-      'title': _data!['title'],
-    };
-    final criteria = (_data!['criteria'] as List? ?? []);
+    final criteria = (_data!['criteria'] as List? ?? [])
+        .cast<Map<String, dynamic>>();
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _ParticipantPickerPage(
-          event: eventPayload,
+        builder: (_) => _ContestantListPage(
+          eventId: widget.judgingEventId,
+          eventTitle: _data!['title'] as String? ?? '',
           criteria: criteria,
           participants: participants,
+          currentStage: _data!['current_stage'] as Map<String, dynamic>?,
         ),
       ),
     );
@@ -102,19 +101,19 @@ class _JudgeViewAssignmentPageState extends State<JudgeViewAssignmentPage> {
                   width: double.infinity,
                   height: 52,
                   child: FilledButton(
-                    onPressed: _startScoring,
+                    onPressed: _viewContestants,
                     style: FilledButton.styleFrom(
-                      backgroundColor: judgeCyan,
-                      foregroundColor: judgeBg,
+                      backgroundColor: judgeGold,
+                      foregroundColor: judgeNavy,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     child: const Text(
-                      'START SCORING →',
+                      'View Contestants',
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 1,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
@@ -537,56 +536,187 @@ class _ParticipantsList extends StatelessWidget {
   }
 }
 
-class _ParticipantPickerPage extends StatelessWidget {
-  const _ParticipantPickerPage({
-    required this.event,
+class _ContestantListPage extends StatelessWidget {
+  const _ContestantListPage({
+    required this.eventId,
+    required this.eventTitle,
     required this.criteria,
     required this.participants,
+    this.currentStage,
   });
 
-  final Map<String, dynamic> event;
-  final List<dynamic> criteria;
+  final int eventId;
+  final String eventTitle;
+  final List<Map<String, dynamic>> criteria;
   final List<Map<String, dynamic>> participants;
+  final Map<String, dynamic>? currentStage;
 
   @override
   Widget build(BuildContext context) {
+    final c = JudgeThemeScope.paletteOf(context);
+    final active = participants
+        .where((p) => p['is_qualified'] != false && p['scoring_status'] != 'not_qualified')
+        .toList();
+
     return Scaffold(
-      backgroundColor: judgeBg,
-      appBar: AppBar(
-        backgroundColor: judgeCard,
-        title: const Text('Select Participant'),
-        foregroundColor: Colors.white,
-      ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(20),
-        itemCount: participants.length,
-        itemBuilder: (_, i) {
-          final p = participants[i];
-          return ListTile(
-            tileColor: judgeCard,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: judgeBorder),
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            JudgePortalHeader(
+              showBack: true,
+              onBack: () => Navigator.pop(context),
+              onNotifications: null,
             ),
-            leading: CircleAvatar(child: Text('${p['number']}')),
-            title: Text(
-              p['name'] as String? ?? '',
-              style: const TextStyle(color: Colors.white),
-            ),
-            trailing: const Icon(Icons.chevron_right_rounded, color: judgeCyan),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => JScoringPage(
-                    event: event,
-                    candidate: p,
-                    criteria: criteria,
-                  ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Contestants',
+                        style: TextStyle(
+                            color: c.text,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900)),
+                    if (currentStage != null)
+                      Text(
+                        'Stage: ${currentStage!['name'] ?? 'Main Scoring'}',
+                        style: const TextStyle(
+                            color: judgeGold, fontWeight: FontWeight.w700),
+                      ),
+                  ],
                 ),
-              );
-            },
-          );
-        },
+              ),
+            ),
+            Expanded(
+              child: active.isEmpty
+                  ? Center(
+                      child: Text('No qualified contestants for this stage.',
+                          style: TextStyle(color: c.muted)),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      itemCount: active.length,
+                      itemBuilder: (_, i) {
+                        final p = active[i];
+                        final status = p['scoring_status'] as String? ?? 'pending';
+                        final action = p['action_label'] as String? ?? 'Score';
+                        final note = p['review_note'] as String? ?? '';
+                        final color = switch (status) {
+                          'submitted' => judgeGreen,
+                          'draft' => judgeGold,
+                          'returned' => judgeRed,
+                          _ => c.muted,
+                        };
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: c.card,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: c.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: judgeGold.withValues(alpha: 0.15),
+                                    backgroundImage: (p['photo'] as String?) != null
+                                        ? NetworkImage(p['photo'] as String)
+                                        : null,
+                                    child: (p['photo'] as String?) == null
+                                        ? Text('#${p['number']}',
+                                            style: const TextStyle(
+                                                color: judgeGold,
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 12))
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '#${p['number']}  ${p['name']}',
+                                          style: TextStyle(
+                                              color: c.text,
+                                              fontWeight: FontWeight.w800),
+                                        ),
+                                        if ((p['department'] as String?)?.isNotEmpty == true)
+                                          Text('${p['department']}',
+                                              style: TextStyle(
+                                                  color: c.muted, fontSize: 12)),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: color.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      p['scoring_status_label'] as String? ?? status,
+                                      style: TextStyle(
+                                          color: color,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (status == 'returned' && note.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text('Correction reason: $note',
+                                    style: const TextStyle(
+                                        color: judgeRed, fontSize: 12)),
+                              ],
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: FilledButton(
+                                  onPressed: status == 'not_qualified'
+                                      ? null
+                                      : () async {
+                                          final result = await Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) => JudgeScoringWizardPage(
+                                                eventId: eventId,
+                                                eventTitle: eventTitle,
+                                                candidate: p,
+                                                criteria: criteria,
+                                                initialStep:
+                                                    (p['draft_step'] as num?)?.toInt() ?? 0,
+                                                readOnly: status == 'submitted',
+                                              ),
+                                            ),
+                                          );
+                                          if (result != null && context.mounted) {
+                                            // Stay on list; parent can refresh on pop.
+                                          }
+                                        },
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: judgeGold,
+                                    foregroundColor: judgeNavy,
+                                  ),
+                                  child: Text(action),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

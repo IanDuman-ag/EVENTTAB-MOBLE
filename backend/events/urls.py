@@ -25,9 +25,15 @@ from .scorer_views import (
     scorer_update_score,
 )
 from .viewer_views import (
+    viewer_about,
+    viewer_announcements,
+    viewer_bracket,
+    viewer_criteria_event_detail,
     viewer_dashboard,
     viewer_events,
     viewer_live,
+    viewer_match_event_detail,
+    viewer_notifications,
     viewer_profile,
     viewer_rankings,
 )
@@ -75,6 +81,20 @@ urlpatterns = [
     path('viewer/live/', viewer_live, name='viewer_live'),
     path('viewer/rankings/', viewer_rankings, name='viewer_rankings'),
     path('viewer/profile/', viewer_profile, name='viewer_profile'),
+    path('viewer/announcements/', viewer_announcements, name='viewer_announcements'),
+    path('viewer/notifications/', viewer_notifications, name='viewer_notifications'),
+    path('viewer/about/', viewer_about, name='viewer_about'),
+    path('viewer/bracket/', viewer_bracket, name='viewer_bracket'),
+    path(
+        'viewer/match-events/<int:match_id>/',
+        viewer_match_event_detail,
+        name='viewer_match_event_detail',
+    ),
+    path(
+        'viewer/criteria-events/<int:judging_event_id>/',
+        viewer_criteria_event_detail,
+        name='viewer_criteria_event_detail',
+    ),
     path('tabulator/queue/', tabulator_queue, name='tabulator_queue'),
     path('tabulator/review/', tabulator_review, name='tabulator_review'),
 ]

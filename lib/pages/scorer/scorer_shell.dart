@@ -24,6 +24,7 @@ class ScorerShell extends StatefulWidget {
 class _ScorerShellState extends State<ScorerShell> {
   late int _index;
   int _notificationCount = 0;
+  bool _isDark = false;
   final _assignmentsKey = GlobalKey<ScorerMyAssignmentsBodyState>();
 
   @override
@@ -31,6 +32,8 @@ class _ScorerShellState extends State<ScorerShell> {
     super.initState();
     _index = widget.initialIndex;
   }
+
+  void _toggleTheme() => setState(() => _isDark = !_isDark);
 
   Future<void> _logout() async {
     await authService.logout();
@@ -65,44 +68,52 @@ class _ScorerShellState extends State<ScorerShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: scorerBg,
-      body: Column(
-        children: [
-          SafeArea(
-            bottom: false,
-            child: ScorerPortalHeader(
-              notificationCount: _notificationCount,
-              onProfile: () => setState(() => _index = 3),
-              onNotifications: () => showScorerNotifications(context),
+    final colors = _isDark ? ScorerPalette.dark : ScorerPalette.light;
+
+    return ScorerThemeScope(
+      isDark: _isDark,
+      onToggle: _toggleTheme,
+      child: Scaffold(
+        backgroundColor: colors.bg,
+        body: Column(
+          children: [
+            SafeArea(
+              bottom: false,
+              child: ScorerPortalHeader(
+                notificationCount: _notificationCount,
+                isDark: _isDark,
+                onToggleTheme: _toggleTheme,
+                onProfile: () => setState(() => _index = 3),
+                onNotifications: () => showScorerNotifications(context),
+              ),
             ),
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: _index,
-              children: [
-                ScorerHomeBody(
-                  onViewAllAssignments: () => setState(() => _index = 1),
-                  onEditMatch: _editMatch,
-                  onNotificationCount: _onNotificationCount,
-                ),
-                ScorerMyAssignmentsBody(
-                  key: _assignmentsKey,
-                  onEditMatch: _editMatch,
-                ),
-                const ScorerHistoryBody(),
-                ScorerProfileBody(
-                  onLogout: _logout,
-                  onGoToAssignments: () => setState(() => _index = 1),
-                ),
-              ],
+            Expanded(
+              child: IndexedStack(
+                index: _index,
+                children: [
+                  ScorerHomeBody(
+                    onViewAllAssignments: () => setState(() => _index = 1),
+                    onEditMatch: _editMatch,
+                    onNotificationCount: _onNotificationCount,
+                  ),
+                  ScorerMyAssignmentsBody(
+                    key: _assignmentsKey,
+                    onEditMatch: _editMatch,
+                  ),
+                  const ScorerHistoryBody(),
+                  ScorerProfileBody(
+                    onLogout: _logout,
+                    onGoToAssignments: () => setState(() => _index = 1),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: ScorerBottomNav(
-        currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
+          ],
+        ),
+        bottomNavigationBar: ScorerBottomNav(
+          currentIndex: _index,
+          onTap: (i) => setState(() => _index = i),
+        ),
       ),
     );
   }

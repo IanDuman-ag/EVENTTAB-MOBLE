@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'judge_api.dart';
 import 'judge_theme.dart';
-import 'judge_widgets.dart';
 
 class JudgeScoreHistoryPage extends StatefulWidget {
   const JudgeScoreHistoryPage({super.key});
@@ -15,12 +14,45 @@ class _JudgeScoreHistoryPageState extends State<JudgeScoreHistoryPage> {
   List<Map<String, dynamic>> _entries = [];
   Map<String, int> _counts = {};
   String _tab = 'all';
+  DateTime? _filterDate;
   bool _isLoading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _load();
+  }
+
+  String get _dateLabel {
+    final d = _filterDate ?? DateTime.now();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[d.month - 1]} ${d.day.toString().padLeft(2, '0')}, ${d.year}';
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _filterDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: judgeNavy,
+              secondary: judgeGold,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked == null) return;
+    setState(() => _filterDate = picked);
     _load();
   }
 
@@ -31,14 +63,26 @@ class _JudgeScoreHistoryPageState extends State<JudgeScoreHistoryPage> {
     });
 
     final tab = status ?? _tab;
-    final data =
-        await JudgeApi.getJson('/api/events/judge/score-history/?status=$tab');
+    var path = '/api/events/judge/score-history/?status=$tab';
+    if (_filterDate != null) {
+      final d = _filterDate!;
+      final iso =
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      path += '&date_from=$iso&date_to=$iso';
+    }
+
+    final data = await JudgeApi.getJson(path);
     if (!mounted) return;
 
     if (data != null) {
+      final raw =
+          (data['entries'] as List? ?? []).cast<Map<String, dynamic>>();
+      // Only criteria-based submissions.
+      final filtered = raw
+          .where((e) => ((e['criteria_count'] as num?)?.toInt() ?? 0) > 0)
+          .toList();
       setState(() {
-        _entries =
-            (data['entries'] as List? ?? []).cast<Map<String, dynamic>>();
+        _entries = filtered;
         _counts = (data['counts'] as Map<String, dynamic>? ?? {})
             .map((k, v) => MapEntry(k, v as int));
         _tab = tab;
@@ -54,75 +98,132 @@ class _JudgeScoreHistoryPageState extends State<JudgeScoreHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Score History',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              SizedBox(height: 6),
-              Text(
-                'View all the scores you have submitted.',
-                style: TextStyle(color: judgeMuted, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        _HistoryTabs(
-          current: _tab,
-          counts: _counts,
-          onChanged: (tab) => _load(status: tab),
-        ),
-        Expanded(
-          child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: judgeCyan),
-                )
-              : _error != null
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(_error!,
-                              style: const TextStyle(color: judgeMuted)),
-                          const SizedBox(height: 12),
-                          FilledButton(
-                            onPressed: () => _load(),
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    )
-                  : _entries.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No scores submitted yet.',
-                            style: TextStyle(color: judgeMuted),
-                          ),
-                        )
-                      : RefreshIndicator(
-                          color: judgeCyan,
-                          onRefresh: () => _load(),
-                          child: ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                            itemCount: _entries.length,
-                            itemBuilder: (_, i) =>
-                                _ScoreHistoryCard(entry: _entries[i]),
-                          ),
+    final c = JudgeThemeScope.paletteOf(context);
+
+    return ColoredBox(
+      color: c.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Score History',
+                        style: TextStyle(
+                          color: c.text,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
                         ),
-        ),
-      ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'View all the scores you have submitted.',
+                        style: TextStyle(color: c.muted, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _pickDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: c.cream,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today_rounded,
+                            size: 16, color: judgeGold),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Filter by Date',
+                              style: TextStyle(color: c.muted, fontSize: 10),
+                            ),
+                            Text(
+                              _dateLabel,
+                              style: TextStyle(
+                                color: c.text,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.keyboard_arrow_down_rounded,
+                            color: c.text, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _HistoryTabs(
+            current: _tab,
+            counts: _counts,
+            onChanged: (tab) => _load(status: tab),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: judgeGold),
+                  )
+                : _error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_error!,
+                                style: TextStyle(color: c.muted)),
+                            const SizedBox(height: 12),
+                            FilledButton(
+                              onPressed: () => _load(),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: c.text,
+                                foregroundColor: c.surface,
+                              ),
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _entries.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No scores submitted yet.',
+                              style: TextStyle(color: c.muted),
+                            ),
+                          )
+                        : RefreshIndicator(
+                            color: judgeGold,
+                            onRefresh: () => _load(),
+                            child: ListView.builder(
+                              padding:
+                                  const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                              itemCount: _entries.length,
+                              itemBuilder: (_, i) =>
+                                  _ScoreHistoryCard(entry: _entries[i]),
+                            ),
+                          ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -140,11 +241,12 @@ class _HistoryTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = JudgeThemeScope.paletteOf(context);
     final tabs = [
-      ('all', 'ALL'),
-      ('pending', 'PENDING'),
-      ('approved', 'APPROVED'),
-      ('rejected', 'REJECTED'),
+      ('all', 'All', Icons.grid_view_rounded, judgeGold),
+      ('pending', 'Pending', Icons.schedule_rounded, c.text),
+      ('approved', 'Approved', Icons.check_circle_rounded, judgeGreen),
+      ('rejected', 'Disapproved', Icons.cancel_rounded, judgeRed),
     ];
 
     return SingleChildScrollView(
@@ -154,27 +256,50 @@ class _HistoryTabs extends StatelessWidget {
         children: tabs.map((tab) {
           final isActive = current == tab.$1;
           final count = counts[tab.$1] ?? 0;
+          final accent = isActive ? judgeGold : tab.$4;
           return Padding(
-            padding: const EdgeInsets.only(right: 18),
+            padding: const EdgeInsets.only(right: 10),
             child: GestureDetector(
               onTap: () => onChanged(tab.$1),
-              child: Column(
-                children: [
-                  Text(
-                    '${tab.$2} ($count)',
-                    style: TextStyle(
-                      color: isActive ? judgeCyan : judgeMuted,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? judgeGold.withValues(alpha: 0.12)
+                      : c.chip,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(tab.$3, size: 15, color: accent),
+                        const SizedBox(width: 5),
+                        Text(
+                          '${tab.$2} ($count)',
+                          style: TextStyle(
+                            color: isActive ? judgeGold : c.text,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 2,
-                    width: 70,
-                    color: isActive ? judgeCyan : Colors.transparent,
-                  ),
-                ],
+                    if (isActive) ...[
+                      const SizedBox(height: 5),
+                      Container(
+                        width: 26,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: judgeGold,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           );
@@ -191,115 +316,172 @@ class _ScoreHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = JudgeThemeScope.paletteOf(context);
     final status = entry['status'] as String? ?? 'pending';
     final icon = judgeCategoryIcon(entry['category_icon'] as String?);
     final score = entry['score'];
     final maxScore = entry['max_score'] ?? 100;
+    final subject = entry['subject_name'] as String? ?? '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: judgeCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: judgeBorder),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: judgePurple.withValues(alpha: 0.2),
-                child: Icon(icon, color: judgePurple, size: 20),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                entry['category_label'] as String? ?? '',
-                style: const TextStyle(
-                  color: judgeMuted,
-                  fontSize: 8,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
+        color: c.card,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: c.isDark ? 0.35 : 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry['title'] as String? ?? '',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${entry['date_display']} | ${entry['time_display']} | ${entry['venue']}',
-                  style: const TextStyle(color: judgeMuted, fontSize: 11),
-                ),
-                const SizedBox(height: 8),
-                RichText(
-                  text: TextSpan(
-                    style: const TextStyle(fontSize: 12),
-                    children: [
-                      TextSpan(
-                        text: '${entry['subject_type']}: ',
-                        style: const TextStyle(color: judgeMuted),
-                      ),
-                      TextSpan(
-                        text: entry['subject_name'] as String? ?? '',
-                        style: const TextStyle(
-                          color: judgeCyan,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: judgeBorder,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'Criteria: ${entry['criteria_count'] ?? 0}',
-                    style: const TextStyle(color: judgeMuted, fontSize: 10),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  entry['submitted_at_display'] as String? ?? '',
-                  style: const TextStyle(color: judgeMuted, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '$score / $maxScore',
-                style: const TextStyle(
-                  color: judgePurple,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _ReviewBadge(status: status, label: entry['status_label']),
-            ],
-          ),
-          const Icon(Icons.chevron_right_rounded, color: judgeCyan),
         ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 5, color: judgeGold),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Column(
+                      children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: judgeGold.withValues(alpha: 0.14),
+                          child: Icon(icon, color: judgeGold, size: 20),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: judgeGold.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            (entry['category_label'] as String? ?? '')
+                                .toUpperCase(),
+                            style: const TextStyle(
+                              color: judgeGold,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry['title'] as String? ?? '',
+                            style: TextStyle(
+                              color: c.text,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            [
+                              entry['date_display'],
+                              entry['time_display'],
+                              entry['venue'],
+                            ]
+                                .where((v) =>
+                                    (v as String?)?.isNotEmpty == true)
+                                .join(' | '),
+                            style: TextStyle(
+                              color: c.muted,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text:
+                                      '${entry['subject_type'] ?? 'Participant'}: ',
+                                  style: TextStyle(
+                                    color: c.muted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                ...judgeSubjectSpans(
+                                  subject,
+                                  muted: c.muted,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: c.chip,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Criteria: ${entry['criteria_count'] ?? 0}',
+                              style: TextStyle(
+                                color: c.muted,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            entry['submitted_at_display'] as String? ?? '',
+                            style: TextStyle(
+                              color: c.muted,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '$score / $maxScore',
+                          style: TextStyle(
+                            color: c.text,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Icon(Icons.chevron_right_rounded,
+                            color: judgeGold, size: 20),
+                        const SizedBox(height: 8),
+                        _ReviewBadge(
+                          status: status,
+                          label: entry['status_label'],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -324,7 +506,7 @@ class _ReviewBadge extends StatelessWidget {
         color = judgeRed;
       default:
         icon = Icons.schedule_rounded;
-        color = judgeYellow;
+        color = judgeGold;
     }
 
     return Row(

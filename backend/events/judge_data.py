@@ -8,7 +8,14 @@ from django.db.models import Max
 from django.db import connection
 from django.utils import timezone
 
-from .models import Candidate, Criterion, JudgeScore, JudgingEvent
+from .models import (
+    Candidate,
+    CandidateStageEligibility,
+    Criterion,
+    JudgeScore,
+    JudgingEvent,
+    JudgingStage,
+)
 
 STATUS_MAP = {
     "active": "ongoing",
@@ -379,6 +386,83 @@ def _count_by_status(assignments):
     return counts
 
 
+def _candidate_scoring_status(user, candidate):
+    scores = JudgeScore.objects.filter(judge=user, candidate=candidate)
+    if not scores.exists():
+        return "pending", "Pending", ""
+    if scores.filter(approval_status="rejected").exists():
+        note = scores.filter(approval_status="rejected").exclude(review_note="").values_list(
+            "review_note", flat=True
+        ).first() or ""
+        return "returned", "Returned for Correction", note
+    if scores.filter(is_locked=True, is_draft=False).exists():
+        return "submitted", "Submitted", ""
+    if scores.filter(is_draft=True).exists() or scores.filter(is_locked=False).exists():
+        return "draft", "Draft Saved", ""
+    return "pending", "Pending", ""
+
+
+def _event_display_status(assignment):
+    """Map internal status to judge-facing status labels."""
+    raw = (assignment.get("status") or "upcoming").lower()
+    if raw == "completed":
+        return "Completed"
+    if raw == "upcoming":
+        return "Upcoming"
+    # ongoing / active
+    progress = assignment.get("scoring_progress") or 0
+    if progress <= 0:
+        return "Scoring Open"
+    if progress >= 100:
+        return "Waiting for Next Stage"
+    return "Ongoing"
+
+
+def _active_stage_payload(event):
+    stages = list(event.stages.all().order_by("order", "id"))
+    if not stages:
+        return {
+            "id": None,
+            "name": "Main Scoring",
+            "description": event.description or "Single-stage criteria scoring",
+            "weight_percent": 100,
+            "order": 0,
+            "status": "scoring_open" if event.status == "active" else (
+                "completed" if event.status == "completed" else "upcoming"
+            ),
+            "qualifier_count": event.candidates.count(),
+            "scoring_deadline": None,
+            "is_active": event.status == "active",
+        }, []
+    active = next((s for s in stages if s.is_active), stages[0])
+    payload = {
+        "id": active.id,
+        "name": active.name,
+        "description": active.description,
+        "weight_percent": float(active.weight_percent),
+        "order": active.order,
+        "status": active.status,
+        "qualifier_count": active.qualifier_count,
+        "scoring_deadline": active.scoring_deadline.isoformat() if active.scoring_deadline else None,
+        "is_active": active.is_active,
+    }
+    all_stages = [
+        {
+            "id": s.id,
+            "name": s.name,
+            "description": s.description,
+            "weight_percent": float(s.weight_percent),
+            "order": s.order,
+            "status": s.status,
+            "qualifier_count": s.qualifier_count,
+            "scoring_deadline": s.scoring_deadline.isoformat() if s.scoring_deadline else None,
+            "is_active": s.is_active,
+        }
+        for s in stages
+    ]
+    return payload, all_stages
+
+
 def fetch_judge_dashboard(user):
     assignments = fetch_judge_assignments(user)
     counts = _count_by_status(assignments)
@@ -387,14 +471,60 @@ def fetch_judge_dashboard(user):
     todays = [a for a in assignments if a.get("date") == today.isoformat()]
     upcoming = [a for a in assignments if a.get("status") == "upcoming"][:5]
 
+    # Contestant-level stats across assigned events
+    event_ids = [a["judging_event_id"] for a in assignments if a.get("judging_event_id")]
+    candidates = Candidate.objects.filter(event_id__in=event_ids)
+    pending_contestants = 0
+    draft_scores = 0
+    submitted_scores = 0
+    for cand in candidates:
+        status_key, _, _ = _candidate_scoring_status(user, cand)
+        if status_key == "pending":
+            pending_contestants += 1
+        elif status_key == "draft":
+            draft_scores += 1
+        elif status_key in ("submitted", "returned"):
+            if status_key == "submitted":
+                submitted_scores += 1
+            else:
+                pending_contestants += 1  # returned counts as needing action
+
+    # Enrich today's cards with progress
+    for item in todays:
+        jid = item["judging_event_id"]
+        total = Candidate.objects.filter(event_id=jid).count() or 0
+        scored = (
+            JudgeScore.objects.filter(
+                judge=user, candidate__event_id=jid, is_locked=True, is_draft=False
+            )
+            .values("candidate_id")
+            .distinct()
+            .count()
+        )
+        item["contestants_total"] = total
+        item["contestants_scored"] = scored
+        item["scoring_progress"] = int(round((scored / total) * 100)) if total else 0
+        item["event_status_label"] = _event_display_status(item)
+        item["current_stage"] = "Main Scoring"
+        try:
+            ev = JudgingEvent.objects.get(id=jid)
+            active, _ = _active_stage_payload(ev)
+            item["current_stage"] = active["name"]
+            item["faculty_in_charge"] = ev.faculty_in_charge or ""
+        except JudgingEvent.DoesNotExist:
+            pass
+
     return {
-        "greeting_name": user.username.replace("_", " ").title(),
+        "greeting_name": user.get_full_name() or user.username.replace("_", " ").title(),
         "todays_assignments": todays[:5],
         "upcoming_events": upcoming,
         "stats": {
             "assigned": len(assignments),
-            "pending": counts["upcoming"] + counts["ongoing"],
-            "completed": counts["completed"],
+            "pending": pending_contestants,
+            "draft": draft_scores,
+            "submitted": submitted_scores,
+            # legacy keys for older clients
+            "completed": submitted_scores,
         },
         "counts": counts,
     }
@@ -428,25 +558,132 @@ def fetch_assignment_detail(user, judging_event_id):
             }
         )
 
+    try:
+        event = JudgingEvent.objects.get(id=judging_event_id)
+    except JudgingEvent.DoesNotExist:
+        return None
+
+    active_stage, all_stages = _active_stage_payload(event)
+    qualified_ids = None
+    if active_stage.get("id"):
+        elig = list(
+            CandidateStageEligibility.objects.filter(
+                stage_id=active_stage["id"]
+            ).values_list("candidate_id", "is_qualified")
+        )
+        if elig:
+            qualified_ids = {cid for cid, ok in elig if ok}
+
     participants = []
+    scored_count = 0
+    remaining = 0
     for candidate in Candidate.objects.filter(event_id=judging_event_id).order_by("number"):
+        is_qualified = True
+        if qualified_ids is not None and candidate.id not in qualified_ids:
+            is_qualified = False
+        status_key, status_label, review_note = _candidate_scoring_status(user, candidate)
+        if not is_qualified:
+            status_key, status_label = "not_qualified", "Not Qualified"
+        if status_key == "submitted":
+            scored_count += 1
+        elif is_qualified:
+            remaining += 1
+
+        action = {
+            "pending": "Score",
+            "draft": "Continue Draft",
+            "submitted": "View Submitted Score",
+            "returned": "Correct Score",
+            "not_qualified": "Not Qualified",
+        }.get(status_key, "Score")
+
+        draft_step = (
+            JudgeScore.objects.filter(judge=user, candidate=candidate, is_draft=True)
+            .values_list("draft_step", flat=True)
+            .first()
+            or 0
+        )
+
+        if is_qualified or status_key == "not_qualified":
+            # Only include not_qualified when listing all; active scoring list filters them out client-side
+            pass
+
         participants.append(
             {
                 "id": candidate.id,
                 "number": candidate.number,
                 "name": candidate.name,
                 "photo": candidate.photo.url if candidate.photo else None,
-                "department": getattr(candidate, "department", "") or "",
+                "department": candidate.department or candidate.description or "",
+                "scoring_status": status_key,
+                "scoring_status_label": status_label,
+                "review_note": review_note,
+                "action_label": action,
+                "is_qualified": is_qualified,
+                "draft_step": draft_step,
             }
         )
 
+    total = len([p for p in participants if p["is_qualified"]])
+    scored_count = len([p for p in participants if p["scoring_status"] == "submitted" and p["is_qualified"]])
+    remaining = total - scored_count
+    progress = int(round((scored_count / total) * 100)) if total else 0
+
+    # Prefer ORM criteria with scoring metadata
+    criteria = _criteria_for_judging_event(judging_event_id, None)
+    orm_criteria = Criterion.objects.filter(event_id=judging_event_id).order_by("order", "id")
+    if orm_criteria.exists():
+        criteria = []
+        for c in orm_criteria:
+            if active_stage.get("id") and c.stage_id and c.stage_id != active_stage["id"]:
+                continue
+            criteria.append(
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "description": c.description or "",
+                    "max_score": float(c.max_score),
+                    "min_score": float(c.min_score or 0),
+                    "weight_percent": float(c.weight_percent),
+                    "order": c.order,
+                    "comment_enabled": c.comment_enabled,
+                    "comment_required": c.comment_required,
+                    "low_score_comment_threshold": (
+                        float(c.low_score_comment_threshold)
+                        if c.low_score_comment_threshold is not None
+                        else None
+                    ),
+                    "decimal_places": c.decimal_places,
+                }
+            )
+
     legacy_id = portal_user_id(user)
     assigned_at = user.date_joined
-
     judge_id = f"JDG-{timezone.localdate().year}-{legacy_id:04d}"
+
+    event_action = {
+        "upcoming": "Open Event",
+        "ongoing": "Continue Scoring" if scored_count < total else "Waiting for Next Stage",
+        "completed": "View Submitted Scores",
+    }.get(match.get("status"), "Open Event")
+    if match.get("status") == "ongoing" and scored_count == 0:
+        event_action = "Open Event"
 
     return {
         **match,
+        "instructions": event.instructions or event.description or "",
+        "faculty_in_charge": event.faculty_in_charge or "",
+        "event_classification": match.get("assignment_type") or "CRITERIA BASED",
+        "current_stage": active_stage,
+        "stages": all_stages,
+        "event_status_label": _event_display_status({**match, "scoring_progress": progress}),
+        "scoring_status": f"{scored_count}/{total} scored",
+        "contestants_total": total,
+        "contestants_scored": scored_count,
+        "contestants_remaining": remaining,
+        "scoring_progress": progress,
+        "action_label": event_action,
+        "criteria": criteria if criteria else match.get("criteria") or [],
         "participants": participants,
         "assignment": {
             "role": "JUDGE",

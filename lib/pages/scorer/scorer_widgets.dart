@@ -183,6 +183,7 @@ class ScorerSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     final words = title.split(' ');
     final first = words.isNotEmpty ? words.first : title;
     final rest = words.length > 1 ? ' ${words.sublist(1).join(' ')}' : '';
@@ -199,8 +200,8 @@ class ScorerSectionHeader extends StatelessWidget {
                   children: [
                     TextSpan(
                       text: first,
-                      style: const TextStyle(
-                        color: scorerNavy,
+                      style: TextStyle(
+                        color: c.text,
                         fontSize: 13,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1.2,
@@ -208,8 +209,8 @@ class ScorerSectionHeader extends StatelessWidget {
                     ),
                     TextSpan(
                       text: rest,
-                      style: const TextStyle(
-                        color: scorerNavy,
+                      style: TextStyle(
+                        color: c.text,
                         fontSize: 13,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1.2,
@@ -243,21 +244,26 @@ class ScorerPortalHeader extends StatelessWidget {
     this.notificationCount = 0,
     this.onProfile,
     this.onNotifications,
+    this.onToggleTheme,
+    this.isDark = false,
   });
 
   final int notificationCount;
   final VoidCallback? onProfile;
   final VoidCallback? onNotifications;
+  final VoidCallback? onToggleTheme;
+  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: scorerWhite,
+        color: c.headerBg,
         boxShadow: [
           BoxShadow(
-            color: scorerNavy.withValues(alpha: 0.06),
+            color: Colors.black.withValues(alpha: c.isDark ? 0.35 : 0.06),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -267,14 +273,14 @@ class ScorerPortalHeader extends StatelessWidget {
         children: [
           Image.asset('assets/Finallogo.png', width: 34, height: 34),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'EVENTTAB',
                   style: TextStyle(
-                    color: scorerNavy,
+                    color: c.text,
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.1,
@@ -283,7 +289,7 @@ class ScorerPortalHeader extends StatelessWidget {
                 Text(
                   'SCORER PORTAL',
                   style: TextStyle(
-                    color: scorerMuted,
+                    color: c.muted,
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.8,
@@ -293,13 +299,26 @@ class ScorerPortalHeader extends StatelessWidget {
             ),
           ),
           GestureDetector(
+            onTap: onToggleTheme,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                color: c.text,
+                size: 24,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
             onTap: onNotifications,
             behavior: HitTestBehavior.opaque,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                const Icon(Icons.notifications_none_rounded,
-                    color: scorerNavy, size: 26),
+                Icon(Icons.notifications_none_rounded,
+                    color: c.text, size: 26),
                 if (notificationCount > 0)
                   Positioned(
                     right: -3,
@@ -326,10 +345,14 @@ class ScorerPortalHeader extends StatelessWidget {
           const SizedBox(width: 12),
           GestureDetector(
             onTap: onProfile,
-            child: const CircleAvatar(
+            child: CircleAvatar(
               radius: 16,
-              backgroundColor: scorerNavy,
-              child: Icon(Icons.person, color: scorerWhite, size: 18),
+              backgroundColor: c.isDark ? scorerGold : scorerNavy,
+              child: Icon(
+                Icons.person,
+                color: c.isDark ? scorerNavy : scorerWhite,
+                size: 18,
+              ),
             ),
           ),
         ],
@@ -350,12 +373,13 @@ class ScorerBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     return Container(
       decoration: BoxDecoration(
-        color: scorerWhite,
+        color: c.headerBg,
         boxShadow: [
           BoxShadow(
-            color: scorerNavy.withValues(alpha: 0.08),
+            color: Colors.black.withValues(alpha: c.isDark ? 0.4 : 0.08),
             blurRadius: 12,
             offset: const Offset(0, -2),
           ),
@@ -414,7 +438,8 @@ class _ScorerNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? scorerGold : scorerNavy;
+    final c = ScorerThemeScope.paletteOf(context);
+    final color = isActive ? scorerGold : c.text;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -463,14 +488,15 @@ class ScorerStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     return Expanded(
       child: Container(
         decoration: BoxDecoration(
-          color: scorerWhite,
+          color: c.card,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: scorerNavy.withValues(alpha: 0.08),
+              color: Colors.black.withValues(alpha: c.isDark ? 0.3 : 0.08),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -500,16 +526,16 @@ class ScorerStatCard extends StatelessWidget {
                       const SizedBox(height: 10),
                       Text(
                         value,
-                        style: const TextStyle(
-                          color: scorerNavy,
+                        style: TextStyle(
+                          color: c.text,
                           fontSize: 24,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
                       Text(
                         label,
-                        style: const TextStyle(
-                          color: scorerMuted,
+                        style: TextStyle(
+                          color: c.muted,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -546,13 +572,16 @@ class ScorerAssignmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     final status = match['status'] as String? ?? 'upcoming';
     final icon = scorerSportIcon(match['sport_icon'] as String?);
     final scoreA = match['score_a'];
     final scoreB = match['score_b'];
     final hasScores = scoreA != null || scoreB != null;
     final teams = match['teams_label'] as String? ?? '';
-    final stripe = accentNavy ? scorerNavy : scorerGold;
+    final stripe = accentNavy
+        ? (c.isDark ? scorerGold : scorerNavy)
+        : scorerGold;
 
     Color statusColor;
     switch (status) {
@@ -567,7 +596,7 @@ class ScorerAssignmentCard extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 0, 20, compact ? 10 : 12),
       child: Material(
-        color: scorerWhite,
+        color: c.card,
         borderRadius: BorderRadius.circular(16),
         elevation: 0,
         child: InkWell(
@@ -575,11 +604,11 @@ class ScorerAssignmentCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           child: Container(
             decoration: BoxDecoration(
-              color: scorerWhite,
+              color: c.card,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: scorerNavy.withValues(alpha: 0.07),
+                  color: Colors.black.withValues(alpha: c.isDark ? 0.35 : 0.07),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -602,7 +631,7 @@ class ScorerAssignmentCard extends StatelessWidget {
                             child: Icon(
                               icon,
                               size: 64,
-                              color: scorerNavy.withValues(alpha: 0.05),
+                              color: c.text.withValues(alpha: 0.05),
                             ),
                           ),
                           Column(
@@ -612,8 +641,13 @@ class ScorerAssignmentCard extends StatelessWidget {
                                 children: [
                                   CircleAvatar(
                                     radius: 20,
-                                    backgroundColor: scorerNavy,
-                                    child: Icon(icon, color: scorerGold, size: 18),
+                                    backgroundColor:
+                                        c.isDark ? scorerGold : scorerNavy,
+                                    child: Icon(
+                                      icon,
+                                      color: c.isDark ? scorerNavy : scorerGold,
+                                      size: 18,
+                                    ),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
@@ -621,8 +655,8 @@ class ScorerAssignmentCard extends StatelessWidget {
                                       match['match_title'] as String? ??
                                           match['title'] as String? ??
                                           'Match',
-                                      style: const TextStyle(
-                                        color: scorerNavy,
+                                      style: TextStyle(
+                                        color: c.text,
                                         fontWeight: FontWeight.w800,
                                         fontSize: 14,
                                       ),
@@ -646,19 +680,24 @@ class ScorerAssignmentCard extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  const Icon(Icons.chevron_right_rounded,
-                                      color: scorerMuted, size: 20),
+                                  Icon(Icons.chevron_right_rounded,
+                                      color: c.muted, size: 20),
                                 ],
                               ),
                               const SizedBox(height: 8),
                               Text.rich(
-                                TextSpan(children: scorerTeamsSpans(teams)),
+                                TextSpan(
+                                  children: scorerTeamsSpans(
+                                    teams,
+                                    textColor: c.text,
+                                  ),
+                                ),
                               ),
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Icon(Icons.calendar_today_rounded,
-                                      size: 12, color: scorerMuted),
+                                  Icon(Icons.calendar_today_rounded,
+                                      size: 12, color: c.muted),
                                   const SizedBox(width: 4),
                                   Flexible(
                                     child: Text(
@@ -669,21 +708,21 @@ class ScorerAssignmentCard extends StatelessWidget {
                                           .where((v) =>
                                               (v as String?)?.isNotEmpty == true)
                                           .join(' • '),
-                                      style: const TextStyle(
-                                        color: scorerMuted,
+                                      style: TextStyle(
+                                        color: c.muted,
                                         fontSize: 11,
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                   const SizedBox(width: 10),
-                                  const Icon(Icons.location_on_outlined,
-                                      size: 12, color: scorerMuted),
+                                  Icon(Icons.location_on_outlined,
+                                      size: 12, color: c.muted),
                                   const SizedBox(width: 2),
                                   Text(
                                     match['venue'] as String? ?? '—',
-                                    style: const TextStyle(
-                                      color: scorerMuted,
+                                    style: TextStyle(
+                                      color: c.muted,
                                       fontSize: 11,
                                     ),
                                   ),
@@ -738,20 +777,21 @@ class ScorerReminderBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: scorerCream,
+          color: c.cream,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: scorerGold.withValues(alpha: 0.45)),
         ),
-        child: const Row(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.info_rounded, color: scorerGold, size: 22),
-            SizedBox(width: 10),
+            const Icon(Icons.info_rounded, color: scorerGold, size: 22),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -759,14 +799,14 @@ class ScorerReminderBox extends StatelessWidget {
                   Text(
                     'Please ensure scores are accurate before submitting.',
                     style: TextStyle(
-                      color: scorerNavy,
+                      color: c.text,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       height: 1.35,
                     ),
                   ),
-                  SizedBox(height: 2),
-                  Text(
+                  const SizedBox(height: 2),
+                  const Text(
                     'You can only submit once per match.',
                     style: TextStyle(
                       color: scorerGold,

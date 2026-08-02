@@ -196,7 +196,7 @@ class AuthService {
     }
 
     final role = body['role'] as String? ?? '';
-    if (role != 'judge' && role != 'scorer') {
+    if (role != 'judge' && role != 'scorer' && role != 'tabulator') {
       throw const AuthException('Invalid access code.');
     }
 

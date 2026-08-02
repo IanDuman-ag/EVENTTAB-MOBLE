@@ -143,6 +143,11 @@ class JudgingEvent(models.Model):
     venue = models.CharField(max_length=200)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='upcoming')
     description = models.TextField(blank=True)
+    instructions = models.TextField(
+        blank=True,
+        help_text="Judge instructions shown on the event details screen",
+    )
+    faculty_in_charge = models.CharField(max_length=200, blank=True, default="")
     assigned_judges = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='assigned_events')
 
     def __str__(self):
@@ -152,13 +157,58 @@ class JudgingEvent(models.Model):
         ordering = ['date', 'time']
 
 
+class JudgingStage(models.Model):
+    """Optional multi-stage flow (e.g. pageant production → Q&A)."""
+
+    STATUS_CHOICES = [
+        ("upcoming", "Upcoming"),
+        ("scoring_open", "Scoring Open"),
+        ("waiting_judges", "Waiting for Other Judges"),
+        ("waiting_faculty", "Waiting for Faculty Confirmation"),
+        ("qualifiers_confirmed", "Qualified Contestants Confirmed"),
+        ("next_stage_open", "Next Stage Open"),
+        ("completed", "Final Stage Completed"),
+    ]
+
+    event = models.ForeignKey(JudgingEvent, on_delete=models.CASCADE, related_name="stages")
+    name = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
+    weight_percent = models.DecimalField(max_digits=5, decimal_places=1, default=100)
+    order = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="scoring_open")
+    qualifier_count = models.PositiveIntegerField(default=0)
+    scoring_deadline = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.event.title} — {self.name}"
+
+
 class Criterion(models.Model):
     event = models.ForeignKey(JudgingEvent, on_delete=models.CASCADE, related_name='criteria')
+    stage = models.ForeignKey(
+        JudgingStage,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="criteria",
+    )
     name = models.CharField(max_length=100)
     description = models.CharField(max_length=200, blank=True)
     max_score = models.DecimalField(max_digits=5, decimal_places=1)
+    min_score = models.DecimalField(max_digits=5, decimal_places=1, default=0)
     weight_percent = models.DecimalField(max_digits=5, decimal_places=1, help_text="Weight as percentage e.g. 20.0")
     order = models.PositiveIntegerField(default=0)
+    comment_enabled = models.BooleanField(default=True)
+    comment_required = models.BooleanField(default=False)
+    low_score_comment_threshold = models.DecimalField(
+        max_digits=5, decimal_places=1, null=True, blank=True,
+        help_text="If set, comments become required when score is at or below this value",
+    )
+    decimal_places = models.PositiveSmallIntegerField(default=1)
 
     def __str__(self):
         return f"{self.event.title} - {self.name}"
@@ -173,6 +223,7 @@ class Candidate(models.Model):
     number = models.PositiveIntegerField(help_text="Candidate number e.g. 1")
     photo = models.ImageField(upload_to='candidates/', null=True, blank=True)
     description = models.TextField(blank=True)
+    department = models.CharField(max_length=200, blank=True, default="")
 
     def __str__(self):
         return f"#{self.number} {self.name}"
@@ -180,6 +231,17 @@ class Candidate(models.Model):
     class Meta:
         ordering = ['number']
         unique_together = ['event', 'number']
+
+
+class CandidateStageEligibility(models.Model):
+    """Who may be scored in a given stage (Faculty confirms qualifiers)."""
+
+    stage = models.ForeignKey(JudgingStage, on_delete=models.CASCADE, related_name="eligibilities")
+    candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name="stage_eligibilities")
+    is_qualified = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ["stage", "candidate"]
 
 
 class JudgeScore(models.Model):
@@ -192,8 +254,18 @@ class JudgeScore(models.Model):
     judge = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='scores')
     candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name='scores')
     criterion = models.ForeignKey(Criterion, on_delete=models.CASCADE, related_name='scores')
+    stage = models.ForeignKey(
+        JudgingStage,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="scores",
+    )
     score = models.DecimalField(max_digits=5, decimal_places=1)
+    comment = models.TextField(blank=True, default="")
     is_locked = models.BooleanField(default=False)
+    is_draft = models.BooleanField(default=False)
+    draft_step = models.PositiveIntegerField(default=0, help_text="0-based criterion index for resume")
     submitted_at = models.DateTimeField(null=True, blank=True)
     verification_id = models.CharField(max_length=50, blank=True)
     approval_status = models.CharField(
@@ -203,6 +275,7 @@ class JudgeScore(models.Model):
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
     review_note = models.CharField(max_length=255, blank=True, default="")
+    previous_score = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
 
     def __str__(self):
         return f"{self.judge.username} - {self.candidate.name} - {self.criterion.name}: {self.score}"

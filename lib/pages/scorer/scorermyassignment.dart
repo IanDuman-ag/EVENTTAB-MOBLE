@@ -126,10 +126,11 @@ class ScorerMyAssignmentsBodyState extends State<ScorerMyAssignmentsBody> {
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     final filtered = _filteredAssignments;
 
     return ColoredBox(
-      color: scorerBg,
+      color: c.bg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -137,14 +138,14 @@ class ScorerMyAssignmentsBodyState extends State<ScorerMyAssignmentsBody> {
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'My Assignments',
                         style: TextStyle(
-                          color: scorerNavy,
+                          color: c.text,
                           fontSize: 24,
                           fontWeight: FontWeight.w900,
                         ),
@@ -152,7 +153,7 @@ class ScorerMyAssignmentsBodyState extends State<ScorerMyAssignmentsBody> {
                       SizedBox(height: 4),
                       Text(
                         'Matches assigned to you.',
-                        style: TextStyle(color: scorerMuted, fontSize: 13),
+                        style: TextStyle(color: c.muted, fontSize: 13),
                       ),
                     ],
                   ),
@@ -161,11 +162,11 @@ class ScorerMyAssignmentsBodyState extends State<ScorerMyAssignmentsBody> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: scorerWhite,
+                    color: c.card,
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: scorerNavy.withValues(alpha: 0.06),
+                        color: Colors.black.withValues(alpha: c.isDark ? 0.3 : 0.06),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -179,14 +180,14 @@ class ScorerMyAssignmentsBodyState extends State<ScorerMyAssignmentsBody> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Today',
-                            style: TextStyle(color: scorerMuted, fontSize: 10),
+                            style: TextStyle(color: c.muted, fontSize: 10),
                           ),
                           Text(
                             _todayDisplay.isEmpty ? '—' : _todayDisplay,
-                            style: const TextStyle(
-                              color: scorerNavy,
+                            style: TextStyle(
+                              color: c.text,
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
                             ),
@@ -206,22 +207,22 @@ class ScorerMyAssignmentsBodyState extends State<ScorerMyAssignmentsBody> {
                 Expanded(
                   child: TextField(
                     controller: _searchCtrl,
-                    style: const TextStyle(color: scorerNavy),
+                    style: TextStyle(color: c.text),
                     onChanged: _onSearchChanged,
                     decoration: InputDecoration(
                       hintText: 'Search match, team or venue...',
-                      hintStyle: const TextStyle(color: scorerMuted),
-                      prefixIcon: const Icon(Icons.search_rounded,
-                          color: scorerMuted),
+                      hintStyle: TextStyle(color: c.muted),
+                      prefixIcon: Icon(Icons.search_rounded,
+                          color: c.muted),
                       suffixIcon: _search.isEmpty
                           ? null
                           : IconButton(
-                              icon: const Icon(Icons.clear_rounded,
-                                  color: scorerMuted),
+                              icon: Icon(Icons.clear_rounded,
+                                  color: c.muted),
                               onPressed: _clearSearch,
                             ),
                       filled: true,
-                      fillColor: const Color(0xFFEEEDF5),
+                      fillColor: c.chip,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 14,
@@ -237,7 +238,7 @@ class ScorerMyAssignmentsBodyState extends State<ScorerMyAssignmentsBody> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide:
-                            const BorderSide(color: scorerNavy, width: 1.2),
+                            BorderSide(color: c.text, width: 1.2),
                       ),
                     ),
                   ),
@@ -247,11 +248,11 @@ class ScorerMyAssignmentsBodyState extends State<ScorerMyAssignmentsBody> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: scorerWhite,
+                    color: c.card,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: scorerBorder),
+                    border: Border.all(color: c.border),
                   ),
-                  child: const Icon(Icons.tune_rounded, color: scorerNavy),
+                  child: Icon(Icons.tune_rounded, color: c.text),
                 ),
               ],
             ),
@@ -320,6 +321,7 @@ class _AssignmentTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = ScorerThemeScope.paletteOf(context);
     final tabs = [
       ('all', 'All'),
       ('live', 'Live'),
@@ -343,7 +345,7 @@ class _AssignmentTabs extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(
-                  color: isActive ? scorerNavy : const Color(0xFFEEEDF5),
+                  color: isActive ? (c.isDark ? scorerGold : scorerNavy) : c.chip,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Column(
@@ -351,7 +353,9 @@ class _AssignmentTabs extends StatelessWidget {
                     Text(
                       '${tab.$2} ($count)',
                       style: TextStyle(
-                        color: isActive ? scorerWhite : scorerNavy,
+                        color: isActive
+                            ? (c.isDark ? scorerNavy : scorerWhite)
+                            : c.text,
                         fontWeight: FontWeight.w800,
                         fontSize: 12,
                       ),
@@ -362,7 +366,7 @@ class _AssignmentTabs extends StatelessWidget {
                         width: 22,
                         height: 3,
                         decoration: BoxDecoration(
-                          color: scorerGold,
+                          color: c.isDark ? scorerNavy : scorerGold,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),

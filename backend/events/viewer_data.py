@@ -417,12 +417,33 @@ def fetch_viewer_dashboard():
     all_items = matches + judging
     live, upcoming, completed = _split_matches(all_items)
     featured = _featured_match(all_items)
-    ongoing = live + upcoming[: max(0, 6 - len(live))]
+    ongoing = live[:6]
     rankings = _build_team_rankings(matches)[:3]
 
+    from .tabulator_data import approved_bracket_match_ids, approved_legacy_match_ids
+
+    approved_b = approved_bracket_match_ids()
+    approved_l = approved_legacy_match_ids()
+    official_results = []
+    for m in completed:
+        mid = m.get("id")
+        src = m.get("source") or ""
+        if src == "judging" and (m.get("status") or "") == "completed":
+            official_results.append({**m, "result_type": "criteria"})
+        elif src == "bracket" and mid in approved_b:
+            official_results.append({**m, "result_type": "match"})
+        elif src in ("match", "legacy") and mid in approved_l:
+            official_results.append({**m, "result_type": "match"})
+        elif mid in approved_b or mid in approved_l:
+            official_results.append({**m, "result_type": "match"})
+
     portal_events = _portal_event_count()
+    announcements = fetch_viewer_announcements()[:3]
+    notifications = fetch_viewer_notifications()
 
     return {
+        "welcome_title": "Welcome to EventTab",
+        "intramurals_banner": "Intramurals 2026 — Live Results & Standings",
         "counts": {
             "live": len(live),
             "upcoming": len(upcoming),
@@ -430,9 +451,13 @@ def fetch_viewer_dashboard():
             "total": len(all_items) + max(portal_events - len(matches), 0),
         },
         "featured": featured,
-        "ongoing": ongoing[:6],
+        "ongoing": ongoing,
+        "upcoming": upcoming[:6],
+        "latest_results": official_results[:8],
         "top_rankings": rankings,
-        "notification_count": len(live),
+        "announcements_preview": announcements,
+        "notification_count": sum(1 for n in notifications if n.get("is_unread")),
+        "notifications": notifications[:10],
     }
 
 
@@ -443,16 +468,43 @@ def _portal_event_count():
         return row[0] if row else 0
 
 
-def fetch_viewer_events(status_filter=None, category_filter=None, search=None):
+def fetch_viewer_events(status_filter=None, category_filter=None, search=None, event_type=None):
     matches = fetch_combined_matches()
     judging = _judging_event_cards()
-    items = matches + judging
+
+    items = []
+    for m in matches:
+        items.append(
+            {
+                **m,
+                "event_type": "match",
+                "event_classification": "Match-Based",
+                "division": m.get("tournament_type") or m.get("round_label_display") or "",
+            }
+        )
+    for j in judging:
+        items.append(
+            {
+                **j,
+                "event_type": "criteria",
+                "event_classification": "Criteria-Based",
+                "division": j.get("category_type") or "",
+            }
+        )
+
+    if event_type in ("match", "criteria"):
+        items = [i for i in items if i.get("event_type") == event_type]
 
     if status_filter and status_filter != "all":
         items = [i for i in items if i.get("status") == status_filter]
 
     if category_filter and category_filter not in ("all", ""):
-        items = [i for i in items if i.get("category_group") == category_filter]
+        items = [
+            i
+            for i in items
+            if i.get("category_group") == category_filter
+            or (i.get("category_type") or "") == category_filter
+        ]
 
     if search:
         q = search.lower()
@@ -460,10 +512,14 @@ def fetch_viewer_events(status_filter=None, category_filter=None, search=None):
             i
             for i in items
             if q in (i.get("match_title") or "").lower()
+            or q in (i.get("event_name") or "").lower()
+            or q in (i.get("title") or "").lower()
             or q in (i.get("teams_label") or "").lower()
             or q in (i.get("venue") or "").lower()
             or q in (i.get("sport") or "").lower()
         ]
+
+    items.sort(key=lambda i: i.get("scheduled_time") or i.get("date_display") or "")
 
     live, upcoming, completed = _split_matches(items)
     counts = {
@@ -471,6 +527,8 @@ def fetch_viewer_events(status_filter=None, category_filter=None, search=None):
         "live": len(live),
         "upcoming": len(upcoming),
         "completed": len(completed),
+        "match": sum(1 for i in items if i.get("event_type") == "match"),
+        "criteria": sum(1 for i in items if i.get("event_type") == "criteria"),
     }
 
     return {"events": items, "counts": counts}
@@ -588,4 +646,374 @@ def fetch_viewer_profile():
             "categories": categories,
             "judging_events": judging_count,
         },
+    }
+
+
+def fetch_viewer_announcements(limit=30):
+    items = []
+    try:
+        for activity in Activity.objects.filter(activity_type="announcement").order_by(
+            "-created_at"
+        )[:limit]:
+            items.append(
+                {
+                    "id": activity.id,
+                    "title": activity.title,
+                    "body": activity.description or "",
+                    "icon": activity.icon or "campaign",
+                    "created_at": activity.created_at.isoformat() if activity.created_at else "",
+                    "time_display": _activity_time(activity.created_at)
+                    if activity.created_at
+                    else "",
+                }
+            )
+    except Exception:
+        pass
+    # Fallback synthetic announcements from live/upcoming if none
+    if not items:
+        matches = fetch_combined_matches()
+        live, upcoming, _ = _split_matches(matches)
+        for m in (live + upcoming)[:5]:
+            items.append(
+                {
+                    "id": f"auto_{m.get('id')}",
+                    "title": m.get("event_name") or m.get("match_title") or "Event update",
+                    "body": f"{m.get('status', '').title()} at {m.get('venue') or 'TBD'}",
+                    "icon": "event",
+                    "created_at": m.get("scheduled_time") or "",
+                    "time_display": m.get("date_display") or "",
+                }
+            )
+    return items
+
+
+def fetch_viewer_notifications():
+    notes = []
+    matches = fetch_combined_matches()
+    live, upcoming, completed = _split_matches(matches)
+    for m in live[:5]:
+        notes.append(
+            {
+                "id": f"live_{m.get('id')}",
+                "title": "Event Starting Soon" if m.get("status") == "upcoming" else "Live Now",
+                "body": m.get("match_title") or m.get("event_name") or "Match is live",
+                "time": m.get("scheduled_time") or "",
+                "time_display": m.get("time_display") or "Now",
+                "is_unread": True,
+                "type": "live",
+                "event_ref": {"type": "match", "id": m.get("id"), "source": m.get("source")},
+            }
+        )
+    from .tabulator_data import approved_bracket_match_ids, approved_legacy_match_ids
+
+    ab = approved_bracket_match_ids()
+    al = approved_legacy_match_ids()
+    for m in completed[:8]:
+        mid = m.get("id")
+        if mid in ab or mid in al:
+            notes.append(
+                {
+                    "id": f"result_{mid}",
+                    "title": "Match Result Published",
+                    "body": m.get("match_title") or m.get("teams_label") or "Result available",
+                    "time": m.get("scheduled_time") or "",
+                    "time_display": m.get("date_display") or "",
+                    "is_unread": False,
+                    "type": "result",
+                    "event_ref": {"type": "match", "id": mid, "source": m.get("source")},
+                }
+            )
+    rankings = _build_team_rankings(matches)
+    if rankings:
+        top = rankings[0]
+        notes.append(
+            {
+                "id": "leaderboard_top",
+                "title": "Leaderboard Updated",
+                "body": f"{top.get('name')} leads with {top.get('points')} pts",
+                "time": timezone.now().isoformat(),
+                "time_display": "Today",
+                "is_unread": True,
+                "type": "leaderboard",
+                "event_ref": {"type": "leaderboard"},
+            }
+        )
+    return notes
+
+
+def fetch_viewer_about():
+    return {
+        "system_description": (
+            "EventTab Intramurals Management System provides live schedules, "
+            "brackets, official results, and championship standings for the school community."
+        ),
+        "school_name": "EventTab University",
+        "current_intramurals": "Intramurals 2026",
+        "version": "1.0.0",
+        "contact": "events@eventtab.local",
+    }
+
+
+def fetch_viewer_bracket(event_id=None):
+    """Published bracket structure for viewers (official scores only)."""
+    from .bracket_data import fetch_bracket_events
+    from .tabulator_data import approved_bracket_match_ids
+
+    approved = approved_bracket_match_ids()
+    events = fetch_bracket_events()
+    if event_id is not None:
+        events = [e for e in events if e.get("event_id") == int(event_id)]
+
+    for event in events:
+        for rnd in event.get("rounds") or []:
+            for match in rnd.get("matches") or []:
+                mid = match.get("id")
+                official = mid in approved
+                match["is_official"] = official
+                match["is_current"] = (match.get("status") or "") == "live"
+                if not official and (match.get("status") or "") == "completed":
+                    # Hide unpublished final scores from viewers
+                    match["score_a"] = None
+                    match["score_b"] = None
+                    match["winner_side"] = None
+                    match["status_display"] = "Awaiting Official Result"
+    return {"events": events}
+
+
+def fetch_viewer_match_event_detail(match_id):
+    matches = fetch_combined_matches()
+    match = next((m for m in matches if str(m.get("id")) == str(match_id)), None)
+    if match is None:
+        return None
+
+    event_name = match.get("event_name") or match.get("sport") or "Event"
+    related = [
+        m
+        for m in matches
+        if (m.get("event_name") or m.get("sport")) == event_name
+        or m.get("event_id") == match.get("event_id")
+    ]
+    from .tabulator_data import approved_bracket_match_ids, approved_legacy_match_ids
+
+    ab = approved_bracket_match_ids()
+    al = approved_legacy_match_ids()
+
+    schedule = []
+    results = []
+    for i, m in enumerate(related, start=1):
+        card = {
+            **m,
+            "game_number": m.get("match_number") or i,
+            "round": m.get("round_label_display") or m.get("round_label") or "",
+            "team_a_name": (m.get("team_a") or {}).get("name") or "TBD",
+            "team_b_name": (m.get("team_b") or {}).get("name") or "TBD",
+        }
+        schedule.append(card)
+        mid = m.get("id")
+        src = m.get("source") or ""
+        official = (src == "bracket" and mid in ab) or (
+            src in ("match", "legacy") and mid in al
+        ) or (mid in ab or mid in al)
+        if (m.get("status") or "") == "completed" and official:
+            sa = m.get("score_a")
+            sb = m.get("score_b")
+            winner = None
+            if sa is not None and sb is not None:
+                if sa > sb:
+                    winner = card["team_a_name"]
+                elif sb > sa:
+                    winner = card["team_b_name"]
+            results.append(
+                {
+                    **card,
+                    "final_score": f"{sa} - {sb}" if sa is not None else "—",
+                    "winner": winner or "—",
+                    "published": True,
+                }
+            )
+
+    teams = set()
+    for m in related:
+        for key in ("team_a", "team_b"):
+            t = m.get(key) or {}
+            if t.get("name") and t.get("abbreviation") not in ("TBD", "EVT", "LOC"):
+                teams.add(t.get("name"))
+
+    bracket = fetch_viewer_bracket(match.get("event_id"))
+
+    return {
+        "event_type": "match",
+        "overview": {
+            "id": match.get("id"),
+            "event_id": match.get("event_id"),
+            "title": event_name,
+            "category": match.get("sport") or match.get("category_group") or "",
+            "division": match.get("tournament_type") or "",
+            "event_classification": "Match-Based",
+            "venue": match.get("venue") or "",
+            "date_display": match.get("date_display") or "",
+            "description": match.get("notes") or f"{event_name} tournament.",
+            "tournament_format": match.get("tournament_type")
+            or match.get("round_label_display")
+            or "Single Elimination",
+            "team_count": len(teams),
+            "status": match.get("status"),
+        },
+        "schedule": schedule,
+        "bracket": bracket,
+        "results": results,
+    }
+
+
+def fetch_viewer_criteria_event_detail(judging_event_id):
+    try:
+        event = JudgingEvent.objects.select_related("category").get(id=judging_event_id)
+    except JudgingEvent.DoesNotExist:
+        return None
+
+    from .models import Candidate, JudgeScore, JudgingStage
+    from decimal import Decimal
+
+    stages = list(event.stages.all().order_by("order", "id"))
+    active = next((s for s in stages if s.is_active), stages[0] if stages else None)
+    stage_payload = [
+        {
+            "id": s.id,
+            "name": s.name,
+            "description": s.description,
+            "status": s.status,
+            "is_active": s.is_active,
+            "order": s.order,
+        }
+        for s in stages
+    ]
+    if not stage_payload:
+        stage_payload = [
+            {
+                "id": None,
+                "name": "Main Stage",
+                "description": event.description or "",
+                "status": "scoring_open" if event.status == "active" else event.status,
+                "is_active": event.status == "active",
+                "order": 0,
+            }
+        ]
+        active_name = "Main Stage"
+    else:
+        active_name = active.name if active else stage_payload[0]["name"]
+
+    # Contestants — only show; qualification status from eligibility when published stage
+    contestants = []
+    for cand in Candidate.objects.filter(event=event).order_by("number"):
+        status_label = "Competing"
+        if event.status == "completed":
+            status_label = "Finalist"
+        contestants.append(
+            {
+                "id": cand.id,
+                "number": cand.number,
+                "name": cand.name,
+                "department": cand.department or cand.description or "",
+                "photo": cand.photo.url if cand.photo else None,
+                "status": status_label,
+            }
+        )
+
+    # Official published results (approved scores only)
+    results = []
+    show_scores = True
+    standings = []
+    for cand in Candidate.objects.filter(event=event).order_by("number"):
+        scores_qs = JudgeScore.objects.filter(
+            candidate=cand, approval_status="approved"
+        ).select_related("criterion")
+        if not scores_qs.exists():
+            continue
+        total = Decimal("0")
+        for js in scores_qs:
+            if js.criterion.max_score > 0:
+                total += js.score * js.criterion.weight_percent / js.criterion.max_score
+        standings.append(
+            {
+                "candidate_id": cand.id,
+                "name": cand.name,
+                "number": cand.number,
+                "department": cand.department or "",
+                "total_score": float(round(total, 1)),
+            }
+        )
+    standings.sort(key=lambda r: r["total_score"], reverse=True)
+    award_titles = ["Champion", "First Runner-Up", "Second Runner-Up"]
+    for i, row in enumerate(standings):
+        row["rank"] = i + 1
+        row["award"] = award_titles[i] if i < len(award_titles) else f"#{i + 1}"
+        if i < 3:
+            contestants_map = {c["id"]: c for c in contestants}
+            if row["candidate_id"] in contestants_map:
+                contestants_map[row["candidate_id"]]["status"] = (
+                    "Winner" if i == 0 else "Finalist"
+                )
+        results.append(
+            {
+                "rank": row["rank"],
+                "contestant_name": row["name"],
+                "department": row["department"],
+                "award": row["award"],
+                "score": row["total_score"] if show_scores else None,
+            }
+        )
+
+    # Mark qualified from eligibility for active stage (only if faculty confirmed)
+    if active and active.id and active.status in (
+        "qualifiers_confirmed",
+        "next_stage_open",
+        "completed",
+    ):
+        from .models import CandidateStageEligibility
+
+        qualified = set(
+            CandidateStageEligibility.objects.filter(
+                stage=active, is_qualified=True
+            ).values_list("candidate_id", flat=True)
+        )
+        if qualified:
+            for c in contestants:
+                if c["id"] in qualified:
+                    c["status"] = "Qualified"
+
+    awards = [
+        {"title": r["award"], "recipient": r["contestant_name"], "department": r["department"]}
+        for r in results[:3]
+    ]
+
+    return {
+        "event_type": "criteria",
+        "overview": {
+            "id": event.id,
+            "title": event.title,
+            "category": event.category.name if event.category_id else "",
+            "category_type": event.category.category_type if event.category_id else "",
+            "division": event.category.category_type if event.category_id else "",
+            "event_classification": "Criteria-Based",
+            "venue": event.venue,
+            "date_display": _format_date(event.date),
+            "time_display": _format_time(event.time),
+            "description": event.description or "",
+            "competition_structure": " / ".join(s["name"] for s in stage_payload),
+            "contestant_count": len(contestants),
+            "status": event.status,
+            "current_stage": active_name,
+            "faculty_in_charge": event.faculty_in_charge or "",
+        },
+        "schedule": {
+            "date_display": _format_date(event.date),
+            "time_display": _format_time(event.time),
+            "venue": event.venue,
+            "current_stage": active_name,
+            "stages": stage_payload,
+        },
+        "contestants": contestants,
+        "results": results if event.status == "completed" or results else [],
+        "awards": awards if event.status == "completed" or awards else [],
+        "show_scores": show_scores,
     }

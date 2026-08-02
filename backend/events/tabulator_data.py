@@ -212,6 +212,7 @@ def review_judge_scores(judge_id, candidate_id, decision, note=""):
         qs.update(
             approval_status="rejected",
             is_locked=False,
+            is_draft=False,
             reviewed_at=now,
             review_note=note or "",
         )

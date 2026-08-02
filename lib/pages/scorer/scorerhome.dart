@@ -97,13 +97,15 @@ class _ScorerHomeBodyState extends State<ScorerHomeBody> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, style: const TextStyle(color: scorerMuted)),
+            Text(_error!,
+                style: TextStyle(
+                    color: ScorerThemeScope.paletteOf(context).muted)),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _load,
               style: FilledButton.styleFrom(
-                backgroundColor: scorerNavy,
-                foregroundColor: scorerWhite,
+                backgroundColor: ScorerThemeScope.paletteOf(context).text,
+                foregroundColor: ScorerThemeScope.paletteOf(context).surface,
               ),
               child: const Text('Retry'),
             ),
@@ -227,10 +229,13 @@ class _ScorerHomeBodyState extends State<ScorerHomeBody> {
           // White schedule sheet overlapping navy
           Transform.translate(
             offset: const Offset(0, -18),
-            child: Container(
-              decoration: const BoxDecoration(
-                color: scorerWhite,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            child: Builder(
+              builder: (context) {
+                final c = ScorerThemeScope.paletteOf(context);
+                return Container(
+              decoration: BoxDecoration(
+                color: c.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,10 +245,10 @@ class _ScorerHomeBodyState extends State<ScorerHomeBody> {
                     trailing: widget.onViewAllAssignments != null
                         ? GestureDetector(
                             onTap: widget.onViewAllAssignments,
-                            child: const Text(
+                            child: Text(
                               'View All >',
                               style: TextStyle(
-                                color: scorerNavy,
+                                color: c.text,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -260,16 +265,16 @@ class _ScorerHomeBodyState extends State<ScorerHomeBody> {
                           vertical: 18,
                         ),
                         decoration: BoxDecoration(
-                          color: scorerBg,
+                          color: c.chip,
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Row(
                           children: [
-                            const Expanded(
+                            Expanded(
                               child: Text(
                                 'No matches scheduled for today.',
                                 style: TextStyle(
-                                  color: scorerMuted,
+                                  color: c.muted,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -278,7 +283,7 @@ class _ScorerHomeBodyState extends State<ScorerHomeBody> {
                             Icon(
                               Icons.calendar_month_rounded,
                               size: 42,
-                              color: scorerNavy.withValues(alpha: 0.18),
+                              color: c.text.withValues(alpha: 0.18),
                             ),
                           ],
                         ),
@@ -297,6 +302,8 @@ class _ScorerHomeBodyState extends State<ScorerHomeBody> {
                   const SizedBox(height: 8),
                 ],
               ),
+            );
+              },
             ),
           ),
         ],

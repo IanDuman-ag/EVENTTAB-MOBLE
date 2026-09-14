@@ -6,6 +6,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import EventCategory, JudgingEvent, Criterion, Candidate, JudgeScore
+from .judge_data import user_assigned_to_judging_event
 from .judging_serializers import (
     EventCategorySerializer, JudgingEventListSerializer,
     JudgingEventDetailSerializer, JudgeScoreSerializer,
@@ -200,9 +201,7 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['post'])
     def save_draft(self, request, pk=None):
         event = self.get_object()
-        if not event.assigned_judges.filter(id=request.user.id).exists() and not (
-            request.user.is_staff or request.user.is_superuser
-        ):
+        if not user_assigned_to_judging_event(request.user, event.id):
             return Response({'detail': 'Not assigned to this event.'}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = SaveDraftSerializer(data=request.data)
@@ -269,9 +268,7 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['post'])
     def submit_scores(self, request, pk=None):
         event = self.get_object()
-        if not event.assigned_judges.filter(id=request.user.id).exists() and not (
-            request.user.is_staff or request.user.is_superuser
-        ):
+        if not user_assigned_to_judging_event(request.user, event.id):
             return Response({'detail': 'Not assigned to this event.'}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = SubmitScoresSerializer(data=request.data)

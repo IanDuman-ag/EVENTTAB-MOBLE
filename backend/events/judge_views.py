@@ -94,7 +94,7 @@ def judge_assignment_detail(request, judging_event_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def judge_score_history(request):
-    """GET /api/events/judge/score-history/?status=all|pending|approved|rejected"""
+    """GET /api/events/judge/score-history/?status=all|draft|submitted|returned"""
     if not _is_judge(request.user):
         return Response({"detail": "Judge access required."}, status=status.HTTP_403_FORBIDDEN)
 

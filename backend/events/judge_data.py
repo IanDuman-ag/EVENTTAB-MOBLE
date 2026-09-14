@@ -1,11 +1,12 @@
 """Read judge assignments and scores from EventTab admin portal + ORM tables."""
 
 import json
+import re
 from datetime import date, datetime
 from decimal import Decimal
 
 from django.db.models import Max
-from django.db import connection
+from django.db import connection, transaction
 from django.utils import timezone
 
 from .models import (
@@ -42,6 +43,18 @@ CATEGORY_META = {
 }
 
 
+def _absolute_media_url(file_field):
+    """Return a media path the Flutter client can prefix with the API host."""
+    if not file_field:
+        return None
+    url = file_field.url
+    if not url:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    return url if url.startswith("/") else f"/{url}"
+
+
 def portal_user_id(user):
     """Resolve auth_user.id used by portal assignment tables."""
     with connection.cursor() as cursor:
@@ -51,6 +64,75 @@ def portal_user_id(user):
         )
         row = cursor.fetchone()
     return row[0] if row else user.id
+
+
+def user_assigned_to_judging_event(user, judging_event_id):
+    """
+    True if the judge is assigned via:
+    - JudgingEvent.assigned_judges (accounts user / ORM), or
+    - events_event_assigned_judges / events_judgingevent_assigned_judges
+      (admin portal tables keyed by auth_user.id).
+    """
+    if user is None or judging_event_id is None:
+        return False
+    if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
+        return True
+    if JudgingEvent.objects.filter(
+        id=judging_event_id, assigned_judges=user
+    ).exists():
+        return True
+
+    legacy_id = portal_user_id(user)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT 1
+            FROM events_judgingevent_assigned_judges
+            WHERE judgingevent_id = %s AND user_id = %s
+            LIMIT 1
+            """,
+            [judging_event_id, legacy_id],
+        )
+        if cursor.fetchone():
+            return True
+        cursor.execute(
+            """
+            SELECT 1
+            FROM events_event_assigned_judges ej
+            INNER JOIN events_event e ON e.id = ej.event_id
+            WHERE e.judging_event_id = %s AND ej.user_id = %s
+            LIMIT 1
+            """,
+            [judging_event_id, legacy_id],
+        )
+        if cursor.fetchone():
+            return True
+        # Some portal DBs also store accounts.User.id in M2M tables.
+        if legacy_id != user.id:
+            cursor.execute(
+                """
+                SELECT 1
+                FROM events_judgingevent_assigned_judges
+                WHERE judgingevent_id = %s AND user_id = %s
+                LIMIT 1
+                """,
+                [judging_event_id, user.id],
+            )
+            if cursor.fetchone():
+                return True
+            cursor.execute(
+                """
+                SELECT 1
+                FROM events_event_assigned_judges ej
+                INNER JOIN events_event e ON e.id = ej.event_id
+                WHERE e.judging_event_id = %s AND ej.user_id = %s
+                LIMIT 1
+                """,
+                [judging_event_id, user.id],
+            )
+            if cursor.fetchone():
+                return True
+    return False
 
 
 def _map_status(raw_status):
@@ -161,6 +243,152 @@ def _criteria_for_judging_event(judging_event_id, scoring_criteria_raw=None):
                 return _criteria_for_judging_event(judging_event_id, row[0])
 
     return _criteria_from_orm(judging_event_id)
+
+
+def _is_placeholder_candidate(candidate):
+    """True only for the legacy sample candidate created with a judging event."""
+    return bool(re.fullmatch(r"Participant\s+\d+", (candidate.name or "").strip(), re.I))
+
+
+def _is_placeholder_criterion(criterion):
+    """True only for the legacy generic scoring criterion."""
+    return (
+        (criterion.name or "").strip().lower() == "overall performance"
+        and float(criterion.max_score) == 10
+    )
+
+
+def _sync_portal_event_configuration(judging_event_id, portal_event_id):
+    """
+    Copy the admin portal's selected participants and criteria to Judge data.
+
+    The portal's `participation_type` and `participant_ids` are authoritative:
+    individual events sync selected registry candidates; team events sync
+    selected teams. Existing scores are never changed.
+    """
+    if not judging_event_id or not portal_event_id:
+        return None
+
+    try:
+        event = JudgingEvent.objects.get(id=judging_event_id)
+    except JudgingEvent.DoesNotExist:
+        return None
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT participation_type, participant_ids, judging_criteria_config
+            FROM events_event
+            WHERE id = %s
+            """,
+            [portal_event_id],
+        )
+        portal_event = cursor.fetchone()
+        if not portal_event:
+            return None
+
+        participation_type, participant_ids_raw, criteria_config_raw = portal_event
+        participation_type = (participation_type or "individual").lower()
+        try:
+            participant_ids = (
+                participant_ids_raw
+                if isinstance(participant_ids_raw, list)
+                else json.loads(participant_ids_raw or "[]")
+            )
+        except (TypeError, json.JSONDecodeError):
+            participant_ids = []
+        try:
+            criteria_config = (
+                criteria_config_raw
+                if isinstance(criteria_config_raw, list)
+                else json.loads(criteria_config_raw or "[]")
+            )
+        except (TypeError, json.JSONDecodeError):
+            criteria_config = []
+
+        if participation_type == "team":
+            cursor.execute(
+                """
+                SELECT t.id, t.name, t.image, d.name
+                FROM events_team t
+                LEFT JOIN events_department d ON d.id = t.department_id
+                WHERE t.status = 'active'
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT rc.id, rc.name, rc.image, d.name
+                FROM events_registrycandidate rc
+                LEFT JOIN events_department d ON d.id = rc.department_id
+                WHERE rc.status = 'active'
+                """
+            )
+        source_records = {
+            str(record_id): (name, image, department)
+            for record_id, name, image, department in cursor.fetchall()
+        }
+        selected_participants = [
+            source_records[str(record_id)]
+            for record_id in participant_ids
+            if str(record_id) in source_records
+        ]
+
+    portal_criteria = []
+    for item in criteria_config if isinstance(criteria_config, list) else []:
+        if not isinstance(item, dict) or not item.get("name"):
+            continue
+        portal_criteria.append(
+            {
+                "name": item["name"],
+                "description": item.get("description") or "",
+                "weight": Decimal(str(item.get("weight") or 0)),
+                "max_score": Decimal(str(item.get("max_score") or 100)),
+                "order": int(item.get("order") or len(portal_criteria) + 1),
+            }
+        )
+
+    existing_candidates = list(event.candidates.all().order_by("number", "id"))
+    scores_exist = JudgeScore.objects.filter(candidate__event=event).exists()
+
+    with transaction.atomic():
+        if selected_participants and not scores_exist:
+            by_number = {str(candidate.number): candidate for candidate in existing_candidates}
+            for number, (name, image, department) in enumerate(
+                selected_participants, start=1
+            ):
+                candidate = by_number.pop(str(number), None)
+                values = {
+                    "name": name,
+                    "department": department or "",
+                    "description": f"Portal {participation_type} for event {portal_event_id}",
+                }
+                if image:
+                    values["photo"] = image
+                if candidate:
+                    for field, value in values.items():
+                        setattr(candidate, field, value)
+                    candidate.save(update_fields=[*values.keys()])
+                else:
+                    Candidate.objects.create(event=event, number=number, **values)
+
+            if by_number:
+                Candidate.objects.filter(
+                    id__in=[candidate.id for candidate in by_number.values()]
+                ).delete()
+
+        if portal_criteria and not scores_exist:
+            event.criteria.all().delete()
+            for order, criterion in enumerate(portal_criteria):
+                Criterion.objects.create(
+                    event=event,
+                    name=criterion["name"],
+                    description=criterion["description"],
+                    max_score=criterion["max_score"],
+                    weight_percent=criterion["weight"],
+                    order=order,
+                )
+    return participation_type
 
 
 def _assignment_type(scoring_method, criteria_count):
@@ -275,6 +503,10 @@ def _serialize_assignment_row(row):
     judging_event_id = row.get("judging_event_id")
     portal_event_id = row.get("portal_event_id")
 
+    participation_type = _sync_portal_event_configuration(
+        judging_event_id, portal_event_id
+    )
+
     event_date = row.get("judging_date") or row.get("event_date")
     event_time = row.get("judging_time") or row.get("event_time")
     venue = row.get("judging_venue") or row.get("venue") or row.get("portal_venue") or ""
@@ -291,13 +523,11 @@ def _serialize_assignment_row(row):
     )
 
     participant_count = 0
-    participant_label = "Participants"
+    participant_label = "Teams" if participation_type == "team" else "Participants"
     if judging_event_id:
         qs = Candidate.objects.filter(event_id=judging_event_id)
         participant_count = qs.count()
-        if participant_count and qs.filter(name__icontains="team").exists():
-            participant_label = "Teams"
-        elif row.get("num_teams"):
+        if participation_type is None and row.get("num_teams"):
             participant_count = int(row.get("num_teams") or 0) or participant_count
             participant_label = "Teams"
 
@@ -326,10 +556,15 @@ def _serialize_assignment_row(row):
         "venue": venue,
         "participant_count": participant_count,
         "participant_label": participant_label,
+        "participation_type": participation_type or "individual",
         "criteria_count": len(criteria),
         "criteria_names": criteria_names,
         "criteria": criteria,
-        "total_points": sum(int(c.get("max_score") or 0) for c in criteria) or 100,
+        # Criteria can each be scored out of 100, but the final result is the
+        # weighted total used by the scoring wizard.
+        "total_points": round(
+            sum(float(c.get("weight_percent") or 0) for c in criteria)
+        ) or 100,
         "description": (row.get("judging_description") or row.get("mechanics") or "").strip(),
     }
 
@@ -374,11 +609,13 @@ def fetch_judge_assignments(user):
         )
 
     assignments.sort(key=lambda a: (a.get("date") or "", a.get("time_display") or ""))
-    return [a for a in assignments if _is_criteria_based_assignment(a)]
+    criteria_only = [a for a in assignments if _is_criteria_based_assignment(a)]
+    # Progress fields are useful on both Home and Events lists.
+    return [_enrich_assignment_progress(user, dict(a)) for a in criteria_only]
 
 
 def _count_by_status(assignments):
-    counts = {"upcoming": 0, "ongoing": 0, "completed": 0}
+    counts = {"all": len(assignments), "upcoming": 0, "ongoing": 0, "completed": 0}
     for item in assignments:
         status = item.get("status", "upcoming")
         if status in counts:
@@ -463,70 +700,113 @@ def _active_stage_payload(event):
     return payload, all_stages
 
 
+def _enrich_assignment_progress(user, item):
+    """Attach scoring progress / current round for dashboard cards."""
+    jid = item.get("judging_event_id")
+    if not jid:
+        return item
+
+    total = Candidate.objects.filter(event_id=jid).count() or 0
+    scored = (
+        JudgeScore.objects.filter(
+            judge=user, candidate__event_id=jid, is_locked=True, is_draft=False
+        )
+        .values("candidate_id")
+        .distinct()
+        .count()
+    )
+    item["contestants_total"] = total
+    item["participants_total"] = total
+    item["contestants_scored"] = scored
+    item["participants_scored"] = scored
+    item["scoring_progress"] = int(round((scored / total) * 100)) if total else 0
+    item["event_status_label"] = _event_display_status(
+        {**item, "scoring_progress": item["scoring_progress"]}
+    )
+    item["current_stage"] = "Main Scoring"
+    item["current_round"] = "Main Scoring"
+    item["rounds_count"] = 1
+    item["judge_mode"] = "Scoring"
+    try:
+        ev = JudgingEvent.objects.get(id=jid)
+        active, all_stages = _active_stage_payload(ev)
+        item["current_stage"] = active["name"]
+        item["current_round"] = active["name"]
+        item["rounds_count"] = max(len(all_stages), 1)
+        item["faculty_in_charge"] = ev.faculty_in_charge or ""
+        item["judges_count"] = ev.assigned_judges.count()
+    except JudgingEvent.DoesNotExist:
+        item["judges_count"] = 0
+
+    # Action label for mobile CTAs
+    status = item.get("status")
+    if status == "ongoing":
+        item["action_label"] = (
+            "Continue Judging" if scored > 0 else "Open Event"
+        )
+    elif status == "completed":
+        item["action_label"] = "View Submission"
+    else:
+        item["action_label"] = "View Event"
+    return item
+
+
 def fetch_judge_dashboard(user):
     assignments = fetch_judge_assignments(user)
     counts = _count_by_status(assignments)
     today = timezone.localdate()
 
-    todays = [a for a in assignments if a.get("date") == today.isoformat()]
-    upcoming = [a for a in assignments if a.get("status") == "upcoming"][:5]
+    # Enrich every assigned event so Home can render progress cards.
+    assigned_events = [_enrich_assignment_progress(user, dict(a)) for a in assignments]
+    # Ongoing first, then upcoming, then completed; nearest date first within group.
+    status_rank = {"ongoing": 0, "upcoming": 1, "completed": 2}
+    assigned_events.sort(
+        key=lambda a: (
+            status_rank.get(a.get("status"), 9),
+            a.get("date") or "",
+            a.get("time_display") or "",
+        )
+    )
 
-    # Contestant-level stats across assigned events
+    todays = [a for a in assigned_events if a.get("date") == today.isoformat()]
+    upcoming = [a for a in assigned_events if a.get("status") == "upcoming"][:5]
+    ongoing = [a for a in assigned_events if a.get("status") == "ongoing"]
+
+    # Participant-level stats across assigned events
     event_ids = [a["judging_event_id"] for a in assignments if a.get("judging_event_id")]
     candidates = Candidate.objects.filter(event_id__in=event_ids)
-    pending_contestants = 0
+    pending_participants = 0
     draft_scores = 0
     submitted_scores = 0
     for cand in candidates:
         status_key, _, _ = _candidate_scoring_status(user, cand)
         if status_key == "pending":
-            pending_contestants += 1
+            pending_participants += 1
         elif status_key == "draft":
             draft_scores += 1
         elif status_key in ("submitted", "returned"):
             if status_key == "submitted":
                 submitted_scores += 1
             else:
-                pending_contestants += 1  # returned counts as needing action
-
-    # Enrich today's cards with progress
-    for item in todays:
-        jid = item["judging_event_id"]
-        total = Candidate.objects.filter(event_id=jid).count() or 0
-        scored = (
-            JudgeScore.objects.filter(
-                judge=user, candidate__event_id=jid, is_locked=True, is_draft=False
-            )
-            .values("candidate_id")
-            .distinct()
-            .count()
-        )
-        item["contestants_total"] = total
-        item["contestants_scored"] = scored
-        item["scoring_progress"] = int(round((scored / total) * 100)) if total else 0
-        item["event_status_label"] = _event_display_status(item)
-        item["current_stage"] = "Main Scoring"
-        try:
-            ev = JudgingEvent.objects.get(id=jid)
-            active, _ = _active_stage_payload(ev)
-            item["current_stage"] = active["name"]
-            item["faculty_in_charge"] = ev.faculty_in_charge or ""
-        except JudgingEvent.DoesNotExist:
-            pass
+                pending_participants += 1  # returned counts as needing action
 
     return {
         "greeting_name": user.get_full_name() or user.username.replace("_", " ").title(),
+        "dashboard_title": "Judge Dashboard",
+        "assigned_events": assigned_events,
         "todays_assignments": todays[:5],
+        "ongoing_events": ongoing,
         "upcoming_events": upcoming,
         "stats": {
             "assigned": len(assignments),
-            "pending": pending_contestants,
+            "pending": pending_participants,
             "draft": draft_scores,
             "submitted": submitted_scores,
             # legacy keys for older clients
             "completed": submitted_scores,
         },
         "counts": counts,
+        "last_submission": _latest_judge_submission(user),
     }
 
 
@@ -539,7 +819,7 @@ def fetch_assignment_detail(user, judging_event_id):
             event = JudgingEvent.objects.get(id=judging_event_id)
         except JudgingEvent.DoesNotExist:
             return None
-        if not event.assigned_judges.filter(id=user.id).exists():
+        if not user_assigned_to_judging_event(user, judging_event_id):
             scored = JudgeScore.objects.filter(
                 judge=user, candidate__event_id=judging_event_id
             ).exists()
@@ -591,9 +871,9 @@ def fetch_assignment_detail(user, judging_event_id):
 
         action = {
             "pending": "Score",
-            "draft": "Continue Draft",
-            "submitted": "View Submitted Score",
-            "returned": "Correct Score",
+            "draft": "Continue",
+            "submitted": "View Submission",
+            "returned": "Edit Score",
             "not_qualified": "Not Qualified",
         }.get(status_key, "Score")
 
@@ -613,7 +893,7 @@ def fetch_assignment_detail(user, judging_event_id):
                 "id": candidate.id,
                 "number": candidate.number,
                 "name": candidate.name,
-                "photo": candidate.photo.url if candidate.photo else None,
+                "photo": _absolute_media_url(candidate.photo),
                 "department": candidate.department or candidate.description or "",
                 "scoring_status": status_key,
                 "scoring_status_label": status_label,
@@ -664,7 +944,7 @@ def fetch_assignment_detail(user, judging_event_id):
     event_action = {
         "upcoming": "Open Event",
         "ongoing": "Continue Scoring" if scored_count < total else "Waiting for Next Stage",
-        "completed": "View Submitted Scores",
+        "completed": "View Submission",
     }.get(match.get("status"), "Open Event")
     if match.get("status") == "ongoing" and scored_count == 0:
         event_action = "Open Event"
@@ -693,6 +973,43 @@ def fetch_assignment_detail(user, judging_event_id):
             "assigned_at_display": _format_date(assigned_at.date()) if assigned_at else "—",
         },
     }
+
+
+def _latest_judge_submission(user):
+    latest = (
+        JudgeScore.objects.filter(judge=user, is_locked=True, is_draft=False)
+        .exclude(submitted_at__isnull=True)
+        .select_related("candidate", "candidate__event")
+        .order_by("-submitted_at")
+        .first()
+    )
+    if latest is None:
+        return None
+    submitted_at = latest.submitted_at
+    return {
+        "candidate_id": latest.candidate_id,
+        "candidate_name": latest.candidate.name,
+        "judging_event_id": latest.candidate.event_id,
+        "event_title": latest.candidate.event.title,
+        "submitted_at": submitted_at.isoformat() if submitted_at else None,
+        "submitted_at_display": (
+            submitted_at.strftime("%b %d, %Y %I:%M %p").lstrip("0")
+            if submitted_at
+            else "Just now"
+        ),
+        "message": "Last submission saved successfully.",
+        "verification_id": latest.verification_id or "",
+    }
+
+
+def _entry_scoring_status(scores_qs):
+    if scores_qs.filter(approval_status="rejected").exists():
+        return "returned", "Returned"
+    if scores_qs.filter(is_locked=True, is_draft=False).exists():
+        return "submitted", "Submitted"
+    if scores_qs.filter(is_draft=True).exists() or scores_qs.filter(is_locked=False).exists():
+        return "draft", "Draft"
+    return "pending", "Pending"
 
 
 def _weighted_total(scores_qs):
@@ -736,11 +1053,17 @@ def fetch_score_history(user, status_filter=None, date_from=None, date_to=None):
         sample = scores_qs.first()
         candidate = sample.candidate
         event = candidate.event
+        scoring_status, scoring_label = _entry_scoring_status(scores_qs)
         review_status = _score_review_status(scores_qs)
         submitted_at = scores_qs.aggregate(latest=Max("submitted_at"))["latest"]
 
-        if status_filter and status_filter != "all" and review_status != status_filter:
-            continue
+        allowed = {"all", "", None}
+        if status_filter not in allowed:
+            if status_filter in ("draft", "submitted", "returned", "pending"):
+                if scoring_status != status_filter:
+                    continue
+            elif review_status != status_filter:
+                continue
 
         event_date = event.date
         if date_from and event_date < date_from:
@@ -763,15 +1086,31 @@ def fetch_score_history(user, status_filter=None, date_from=None, date_to=None):
         total = _weighted_total(scores_qs)
         max_score = 100.0
         meta = _category_meta(event.category.name if event.category_id else "Event")
+        verification_id = (
+            scores_qs.exclude(verification_id="").values_list("verification_id", flat=True).first()
+            or ""
+        )
+        current_round = "Main Scoring"
+        try:
+            active, _ = _active_stage_payload(event)
+            current_round = active.get("name") or "Main Scoring"
+        except Exception:
+            pass
 
+        stamp = submitted_at
         entries.append(
             {
                 "id": f"{event.id}-{candidate.id}",
                 "judging_event_id": event.id,
                 "candidate_id": candidate.id,
+                "candidate_number": candidate.number,
+                "candidate_name": candidate.name,
+                "department": candidate.department or candidate.description or "",
+                "photo": _absolute_media_url(candidate.photo),
                 "category_label": meta["label"],
                 "category_icon": meta["icon"],
                 "title": event.title,
+                "current_round": current_round,
                 "date_display": _format_date(event.date),
                 "time_display": _format_time(event.time),
                 "venue": event.venue,
@@ -780,29 +1119,39 @@ def fetch_score_history(user, status_filter=None, date_from=None, date_to=None):
                 "criteria_count": criteria_count,
                 "score": total,
                 "max_score": max_score,
-                "status": review_status,
-                "status_label": {
-                    "approved": "APPROVED",
-                    "pending": "PENDING REVIEW",
-                    "rejected": "DISAPPROVED",
-                }.get(review_status, review_status.upper()),
+                "scoring_status": scoring_status,
+                "status": scoring_status,
+                "status_label": scoring_label,
+                "review_status": review_status,
+                "verification_id": verification_id,
                 "submitted_at": submitted_at.isoformat() if submitted_at else None,
                 "submitted_at_display": (
-                    submitted_at.strftime("%b %d, %Y %I:%M %p").lstrip("0")
-                    if submitted_at
+                    stamp.strftime("%b %d, %Y %I:%M %p").lstrip("0")
+                    if stamp
                     else "—"
                 ),
-                "processed_by": "Tabulator" if review_status in ("approved", "rejected") else None,
             }
         )
 
     entries.sort(key=lambda e: e.get("submitted_at") or "", reverse=True)
 
-    counts = {"all": len(entries), "pending": 0, "approved": 0, "rejected": 0}
+    counts = {
+        "all": 0,
+        "draft": 0,
+        "submitted": 0,
+        "returned": 0,
+        "pending": 0,
+        "approved": 0,
+        "rejected": 0,
+    }
     for entry in entries:
-        key = entry["status"]
+        counts["all"] += 1
+        key = entry.get("scoring_status")
         if key in counts:
             counts[key] += 1
+        review = entry.get("review_status")
+        if review in counts:
+            counts[review] += 1
 
     return {"entries": entries, "counts": counts}
 

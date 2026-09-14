@@ -143,7 +143,8 @@ def fetch_combined_matches():
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT name, category, venue, event_date, event_time
+                SELECT name, category, venue, event_date, event_time,
+                       sport_type, sport_custom_name
                 FROM events_event WHERE id = %s
                 """,
                 [match.get("event_id")],
@@ -154,7 +155,13 @@ def fetch_combined_matches():
                 match = {
                     **match,
                     "event_name": row[0],
-                    "sport": (row[1] or match.get("sport") or "other").lower(),
+                    "sport": (
+                        row[6]
+                        or row[5]
+                        or row[1]
+                        or match.get("sport")
+                        or "other"
+                    ).lower(),
                 }
                 if not match.get("venue"):
                     match["venue"] = row[2] or ""
@@ -377,9 +384,50 @@ def _build_team_rankings(matches, sport_filter=None, category_filter=None):
     return rows
 
 
+def _portal_judging_event_metadata():
+    """Return the public portal configuration linked to each judging record."""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT judging_event_id, scoring_method, publication_status
+                FROM events_event
+                WHERE judging_event_id IS NOT NULL
+                """
+            )
+            return {
+                judging_event_id: {
+                    "scoring_method": (scoring_method or "").strip().lower(),
+                    "publication_status": (publication_status or "")
+                    .strip()
+                    .lower(),
+                }
+                for judging_event_id, scoring_method, publication_status
+                in cursor.fetchall()
+            }
+    except Exception:
+        # Some deployments only use the Django judging tables.
+        return {}
+
+
 def _judging_event_cards():
     cards = []
+    portal_metadata = _portal_judging_event_metadata()
     for event in JudgingEvent.objects.select_related("category").all():
+        metadata = portal_metadata.get(event.id)
+        if metadata:
+            # The portal event is authoritative. Match-based portal events may
+            # have a JudgingEvent mirror for assignments, but belong in the
+            # match feed and must not appear as criteria-based duplicates.
+            if metadata["scoring_method"] in {
+                "match",
+                "score",
+                "score_based",
+                "bracket",
+            }:
+                continue
+            if metadata["publication_status"] not in {"", "published"}:
+                continue
         status = event.status or "upcoming"
         if status == "active":
             status = "live"
@@ -468,8 +516,58 @@ def _portal_event_count():
         return row[0] if row else 0
 
 
+def _group_match_events(matches):
+    """Collapse a tournament's individual matches into one viewer event card."""
+    grouped = {}
+    for match in matches:
+        event_id = match.get("event_id")
+        event_name = (match.get("event_name") or "").strip().lower()
+        sport = (match.get("sport") or "").strip().lower()
+        if event_id is not None:
+            key = ("event", str(event_id))
+        elif event_name:
+            key = ("name", event_name, sport)
+        else:
+            key = (
+                "match",
+                str(match.get("source") or ""),
+                str(match.get("id") or id(match)),
+            )
+        grouped.setdefault(key, []).append(match)
+
+    status_priority = {"live": 0, "ongoing": 0, "upcoming": 1, "completed": 2}
+    events = []
+    for matches_for_event in grouped.values():
+        representative = min(
+            matches_for_event,
+            key=lambda match: (
+                status_priority.get((match.get("status") or "").lower(), 3),
+                match.get("scheduled_time") or "",
+            ),
+        )
+        statuses = {
+            (match.get("status") or "").lower() for match in matches_for_event
+        }
+        if statuses.intersection({"live", "ongoing"}):
+            event_status = "live"
+        elif "upcoming" in statuses:
+            event_status = "upcoming"
+        elif statuses == {"completed"}:
+            event_status = "completed"
+        else:
+            event_status = representative.get("status") or "upcoming"
+        events.append(
+            {
+                **representative,
+                "status": event_status,
+                "match_count": len(matches_for_event),
+            }
+        )
+    return events
+
+
 def fetch_viewer_events(status_filter=None, category_filter=None, search=None, event_type=None):
-    matches = fetch_combined_matches()
+    matches = _group_match_events(fetch_combined_matches())
     judging = _judging_event_cards()
 
     items = []

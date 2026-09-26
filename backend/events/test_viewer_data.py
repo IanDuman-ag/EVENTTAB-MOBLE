@@ -3,7 +3,9 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
 
+from .bracket_data import _parse_score
 from .viewer_data import (
+    _build_team_rankings,
     _group_match_events,
     _judging_event_cards,
     fetch_viewer_rankings,
@@ -103,6 +105,54 @@ class ViewerMatchGroupingTests(SimpleTestCase):
 
 
 class ViewerRankingMetadataTests(SimpleTestCase):
+    def test_web_decimal_score_is_parsed(self):
+        self.assertEqual(_parse_score("20.0"), 20)
+        self.assertEqual(_parse_score("20.5"), 20.5)
+
+    @patch("events.tabulator_data.approved_legacy_match_ids", return_value={7})
+    @patch("events.tabulator_data.approved_bracket_match_ids", return_value=set())
+    @patch("events.viewer_data._team_catalog")
+    def test_approved_result_populates_ranking_with_uploaded_logo(
+        self, catalog, _approved_bracket, _approved_legacy
+    ):
+        logo = "https://res.cloudinary.com/demo/image/upload/team.png"
+        team = {
+            "team_id": 1,
+            "name": "Ateneo",
+            "abbreviation": "ATN",
+            "logo_icon": logo,
+            "color": "#123456",
+        }
+        opponent = {
+            "team_id": 2,
+            "name": "Black Knights",
+            "abbreviation": "BK",
+            "logo_icon": "",
+            "color": "#654321",
+        }
+        catalog.return_value = (
+            {1: team, 2: opponent},
+            {"ateneo": team, "black knights": opponent},
+        )
+
+        rows = _build_team_rankings([
+            {
+                "id": 7,
+                "source": "match",
+                "status": "completed",
+                "sport": "basketball",
+                "team_a": {"id": 1, "name": "Ateneo"},
+                "team_b": {"id": 2, "name": "Black Knights"},
+                "score_a": 80,
+                "score_b": 72,
+            }
+        ])
+
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["name"], "Ateneo")
+        self.assertEqual(rows[0]["points"], 80)
+        self.assertEqual(rows[0]["logo_icon"], logo)
+
     @patch("events.viewer_data._build_team_rankings", return_value=[])
     @patch("events.viewer_data.fetch_combined_matches")
     def test_rankings_expose_real_sport_filters(self, combined_matches, _rankings):

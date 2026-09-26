@@ -75,7 +75,7 @@ class JudgingEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = JudgingEvent
         fields = ['id', 'title', 'category', 'category_name', 'date', 'time',
-                  'venue', 'status', 'description', 'candidate_count']
+                  'venue', 'image_url', 'status', 'description', 'candidate_count']
 
     def get_candidate_count(self, obj):
         return obj.candidates.count()

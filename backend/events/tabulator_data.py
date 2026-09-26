@@ -4,6 +4,7 @@ from collections import defaultdict
 from decimal import Decimal
 
 from django.db.models import Max
+from django.db import connection
 from django.utils import timezone
 
 from .bracket_data import fetch_bracket_match, update_bracket_match_score
@@ -227,11 +228,29 @@ def review_judge_scores(judge_id, candidate_id, decision, note=""):
 
 
 def approved_bracket_match_ids():
-    return set(
+    approved = set(
         BracketScorerSubmission.objects.filter(
             approval_status="approved"
         ).values_list("bracket_match_id", flat=True)
     )
+    # Results finalized in the web tabulator are authoritative too. The web
+    # portal stores these in its score-sheet table rather than in the mobile
+    # scorer-submission table.
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT DISTINCT match_id
+                FROM events_scoresheet
+                WHERE match_id IS NOT NULL
+                  AND LOWER(status) IN ('approved', 'finalized')
+                """
+            )
+            approved.update(row[0] for row in cursor.fetchall())
+    except Exception:
+        # Keep compatibility with deployments that do not have the web table.
+        pass
+    return approved
 
 
 def approved_legacy_match_ids():

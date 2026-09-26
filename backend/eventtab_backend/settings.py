@@ -108,6 +108,8 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 # Optional absolute CDN/website origin for team images, e.g. https://portal.example.com/media
 MEDIA_BASE_URL = config("MEDIA_BASE_URL", default="")
+# Cloudinary delivery host for public IDs synchronized from the admin portal.
+CLOUDINARY_CLOUD_NAME = config("CLOUDINARY_CLOUD_NAME", default="fpx02xz0")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,9 @@ import json
 import re
 from datetime import date, datetime
 from decimal import Decimal
+from urllib.parse import quote
 
+from django.conf import settings
 from django.db.models import Max
 from django.db import connection, transaction
 from django.utils import timezone
@@ -47,6 +49,16 @@ def _absolute_media_url(file_field):
     """Return a media path the Flutter client can prefix with the API host."""
     if not file_field:
         return None
+    name = str(getattr(file_field, "name", file_field) or "").strip()
+    if name.startswith("cloudinary/"):
+        cloud_name = getattr(settings, "CLOUDINARY_CLOUD_NAME", "").strip()
+        if not cloud_name:
+            return None
+        public_id = name.removeprefix("cloudinary/").lstrip("/")
+        return (
+            f"https://res.cloudinary.com/{cloud_name}/image/upload/"
+            f"{quote(public_id, safe='/')}"
+        )
     url = file_field.url
     if not url:
         return None
@@ -449,6 +461,7 @@ def _fetch_portal_events_for_user(legacy_user_id):
             j.date AS judging_date,
             j.time AS judging_time,
             j.venue AS judging_venue,
+            j.image_url,
             j.category_id
         FROM events_event e
         INNER JOIN events_event_assigned_judges ej ON ej.event_id = e.id
@@ -472,6 +485,7 @@ def _fetch_judging_only_assignments(legacy_user_id):
             j.date AS judging_date,
             j.time AS judging_time,
             j.venue AS judging_venue,
+            j.image_url,
             j.category_id,
             e.id AS portal_event_id,
             e.name,
@@ -554,6 +568,7 @@ def _serialize_assignment_row(row):
         "date_display": _format_date(event_date),
         "time_display": _format_time(event_time),
         "venue": venue,
+        "image_url": (row.get("image_url") or "").strip(),
         "participant_count": participant_count,
         "participant_label": participant_label,
         "participation_type": participation_type or "individual",
@@ -603,6 +618,7 @@ def fetch_judge_assignments(user):
                     "judging_date": event.date,
                     "judging_time": event.time,
                     "judging_venue": event.venue,
+                    "image_url": event.image_url,
                     "category": event.category.name if event.category_id else "Event",
                 }
             )
@@ -834,6 +850,7 @@ def fetch_assignment_detail(user, judging_event_id):
                 "judging_date": event.date,
                 "judging_time": event.time,
                 "judging_venue": event.venue,
+                "image_url": event.image_url,
                 "category": event.category.name if event.category_id else "Event",
             }
         )

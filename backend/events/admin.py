@@ -236,6 +236,7 @@ class JudgingEventAdmin(admin.ModelAdmin):
     inlines          = [JudgingStageInline, CriterionInline, CandidateInline]
     fields = [
         'title', 'category', 'date', 'time', 'venue', 'status',
+        'image_url',
         'faculty_in_charge', 'description', 'instructions', 'assigned_judges',
     ]
 

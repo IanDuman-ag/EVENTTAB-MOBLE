@@ -94,7 +94,35 @@ def _legacy_matches():
             row["source"] = "match"
             matches.append(row)
     except Exception:
-        pass
+        # The production web portal owns this table and stores uploaded logos
+        # in ``image`` (or the related department's ``logo``) instead of the
+        # legacy model's ``logo_icon`` field.
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT t.id, t.name,
+                           COALESCE(NULLIF(t.code, ''), d.code, UPPER(LEFT(t.name, 4))),
+                           COALESCE(NULLIF(t.image, ''), NULLIF(d.logo, ''), ''),
+                           COALESCE(NULLIF(d.delegation_color, ''), '#00C5D9')
+                    FROM events_team t
+                    LEFT JOIN events_department d ON d.id = t.department_id
+                    ORDER BY t.name
+                    """
+                )
+                for team_id, name, abbreviation, logo, color in cursor.fetchall():
+                    payload = {
+                        "team_id": team_id,
+                        "name": name,
+                        "abbreviation": abbreviation or (name or "?")[:4].upper(),
+                        "logo_icon": logo or "",
+                        "color": color or "#00C5D9",
+                    }
+                    by_id[team_id] = payload
+                    by_name[(name or "").strip().lower()] = payload
+                    by_name[(abbreviation or "").strip().lower()] = payload
+        except Exception:
+            pass
     return matches
 
 

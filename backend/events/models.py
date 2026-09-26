@@ -141,6 +141,12 @@ class JudgingEvent(models.Model):
     date = models.DateField()
     time = models.TimeField()
     venue = models.CharField(max_length=200)
+    image_url = models.URLField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Cloudinary secure URL for the event image",
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='upcoming')
     description = models.TextField(blank=True)
     instructions = models.TextField(

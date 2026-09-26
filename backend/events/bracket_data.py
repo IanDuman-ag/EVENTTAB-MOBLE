@@ -51,10 +51,12 @@ _BRACKET_MATCH_SQL = """
         ta.name AS team_a_name,
         da.code AS team_a_abbr,
         da.delegation_color AS team_a_color,
+        COALESCE(NULLIF(da.logo, ''), '') AS team_a_logo,
         tb.id AS team_b_id,
         tb.name AS team_b_name,
         db.code AS team_b_abbr,
-        db.delegation_color AS team_b_color
+        db.delegation_color AS team_b_color,
+        COALESCE(NULLIF(db.logo, ''), '') AS team_b_logo
     FROM events_bracketmatch bm
     INNER JOIN events_event e ON e.id = bm.event_id
     LEFT JOIN events_bracketteam ta ON ta.id = bm.team_a_id
@@ -73,8 +75,9 @@ def _parse_score(value):
     if not text:
         return None
     try:
-        return int(text)
-    except ValueError:
+        numeric = float(text)
+        return int(numeric) if numeric.is_integer() else numeric
+    except (TypeError, ValueError):
         return None
 
 
@@ -89,13 +92,14 @@ def _round_sort_key(round_name):
     return ROUND_ORDER.get((round_name or "").lower().strip(), 99)
 
 
-def _team_payload(team_id, name, abbr, color):
+def _team_payload(team_id, name, abbr, color, logo=""):
     display = name or "TBD"
     return {
         "id": team_id,
         "name": display,
         "abbreviation": abbr or (display[:4].upper() if display != "TBD" else "TBD"),
         "color": color or "#8B8D91",
+        "logo_icon": logo or "",
     }
 
 
@@ -134,12 +138,14 @@ def serialize_bracket_row(row):
             team_a_name,
             row.get("team_a_abbr"),
             row.get("team_a_color"),
+            row.get("team_a_logo"),
         ),
         "team_b": _team_payload(
             row.get("team_b_id"),
             team_b_name,
             row.get("team_b_abbr"),
             row.get("team_b_color"),
+            row.get("team_b_logo"),
         ),
         "score_a": _parse_score(row.get("score_a")),
         "score_b": _parse_score(row.get("score_b")),

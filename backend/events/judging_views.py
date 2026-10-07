@@ -1,5 +1,4 @@
 import uuid
-from decimal import Decimal
 from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import api_view, permission_classes
@@ -7,6 +6,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import EventCategory, JudgingEvent, Criterion, Candidate, JudgeScore
 from .judge_data import user_assigned_to_judging_event
+from .judge_rounds import judging_rounds, select_judging_round, validate_round_scoring
+from .judge_results import official_event_results, round_score, round_maximum
 from .judging_serializers import (
     EventCategorySerializer, JudgingEventListSerializer,
     JudgingEventDetailSerializer, JudgeScoreSerializer,
@@ -158,41 +159,11 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['get'])
     def standings(self, request, pk=None):
         """
-        Return candidates ranked by their total weighted score.
-        Formula: sum(score * weight_percent / max_score) across all judges and criteria.
+        Return verified event standings using the saved result rules.
+        Multi-round results are withheld until the final round is complete.
         """
         event = self.get_object()
-        candidates = Candidate.objects.filter(event=event)
-
-        results = []
-        for candidate in candidates:
-            scores_qs = JudgeScore.objects.filter(
-                candidate=candidate,
-                approval_status="approved",
-            ).select_related('criterion')
-            total = Decimal('0.00')
-            for js in scores_qs:
-                if js.criterion.max_score > 0:
-                    total += js.score * js.criterion.weight_percent / js.criterion.max_score
-            pending_live = JudgeScore.objects.filter(
-                candidate=candidate,
-                approval_status="pending",
-                submitted_at__isnull=False,
-            ).exists()
-            results.append({
-                'candidate_id': candidate.id,
-                'name': candidate.name,
-                'number': candidate.number,
-                'total_score': total,
-                'is_live': pending_live,
-                'is_official': scores_qs.exists(),
-            })
-
-        # Official leaderboard: only candidates with tabulator-approved scores.
-        results = [r for r in results if r['is_official']]
-        results.sort(key=lambda x: x['total_score'], reverse=True)
-        for i, r in enumerate(results):
-            r['rank'] = i + 1
+        results = official_event_results(event)
 
         serializer = CandidateStandingSerializer(results, many=True)
         return Response(serializer.data)
@@ -217,7 +188,14 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
         except Candidate.DoesNotExist:
             return Response({'detail': 'Candidate not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        existing = JudgeScore.objects.filter(judge=request.user, candidate=candidate)
+        rounds, metadata = judging_rounds(event)
+        selected_round = select_judging_round(rounds, serializer.validated_data.get('round_id'))
+        validate_round_scoring(event, candidate, selected_round)
+        round_score([], selected_round, metadata)
+        allowed_ids = set(selected_round['criteria_ids'])
+        if any(item['criterion_id'] not in allowed_ids for item in scores_data):
+            return Response({'detail': 'Criteria do not belong to the selected round.'}, status=status.HTTP_400_BAD_REQUEST)
+        existing = JudgeScore.objects.filter(judge=request.user, candidate=candidate, criterion_id__in=allowed_ids)
         if existing.filter(approval_status="approved").exists():
             return Response({'detail': 'Scores already approved.'}, status=status.HTTP_400_BAD_REQUEST)
         if existing.filter(approval_status="pending", is_locked=True, is_draft=False).exists():
@@ -226,7 +204,6 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        active_stage = event.stages.filter(is_active=True).first()
         saved = 0
         for item in scores_data:
             try:
@@ -251,7 +228,7 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
                     'submitted_at': None,
                     'verification_id': '',
                     'approval_status': 'pending',
-                    'stage': active_stage,
+                    'stage_id': selected_round['stage_id'],
                 },
             )
             saved += 1
@@ -283,9 +260,16 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
         except Candidate.DoesNotExist:
             return Response({'detail': 'Candidate not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Prevent re-submission while pending/approved (allow after reject).
+        rounds, metadata = judging_rounds(event)
+        selected_round = select_judging_round(rounds, serializer.validated_data.get('round_id'))
+        validate_round_scoring(event, candidate, selected_round)
+        round_score([], selected_round, metadata)
+        allowed_ids = set(selected_round['criteria_ids'])
+        if any(item['criterion_id'] not in allowed_ids for item in scores_data):
+            return Response({'detail': 'Criteria do not belong to the selected round.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Prevent re-submission within this round, without blocking other rounds.
         existing = JudgeScore.objects.filter(
-            judge=request.user, candidate=candidate
+            judge=request.user, candidate=candidate, criterion_id__in=allowed_ids
         )
         if existing.filter(approval_status="approved").exists():
             return Response(
@@ -299,12 +283,7 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         # Validate all required criteria present
-        criteria = list(Criterion.objects.filter(event=event).order_by('order', 'id'))
-        active_stage = event.stages.filter(is_active=True).first()
-        if active_stage:
-            stage_criteria = [c for c in criteria if c.stage_id in (None, active_stage.id)]
-            if stage_criteria:
-                criteria = stage_criteria
+        criteria = list(Criterion.objects.filter(event=event, id__in=allowed_ids).order_by('order', 'id'))
 
         by_id = {int(item['criterion_id']): item for item in scores_data}
         for criterion in criteria:
@@ -360,16 +339,15 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
                     'reviewed_at': None,
                     'review_note': '',
                     'previous_score': previous_score,
-                    'stage': active_stage,
+                    'stage_id': selected_round['stage_id'],
                 }
             )
             created_scores.append(judge_score)
 
-        total_score = 0
+        total_score = round_score(created_scores, selected_round, metadata)
         breakdown = []
         for js in created_scores:
-            weighted = float(js.score) * float(js.criterion.weight_percent) / float(js.criterion.max_score) if float(js.criterion.max_score) > 0 else 0
-            total_score += weighted
+            weighted = float(round_score([js], {**selected_round, 'rules': {'method': 'weighted_percentage'}}, metadata))
             breakdown.append({
                 'criterion': js.criterion.name,
                 'score': float(js.score),
@@ -382,7 +360,14 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({
             'verification_id': verification_id,
             'submitted_at': submitted_at.isoformat(),
-            'total_score': round(total_score, 1),
+            'total_score': float(round(total_score, 2)),
+            'round_score': float(round(total_score, 2)),
+            'round_max_score': round_maximum(criteria, selected_round, metadata),
+            'round_id': selected_round['id'],
+            'scoring_method': selected_round.get('rules', {}).get('method', 'weighted_percentage'),
+            'result_scope': 'round',
+            'is_official': False,
+            'detail': 'Round scores recorded. Official event results require final-round completion and verification.',
             'breakdown': breakdown,
             'is_locked': True,
             'approval_status': 'pending',
@@ -394,6 +379,8 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['get'])
     def my_scores(self, request, pk=None):
         event = self.get_object()
+        if not user_assigned_to_judging_event(request.user, event.id):
+            return Response({'detail': 'Not assigned to this event.'}, status=status.HTTP_403_FORBIDDEN)
         candidate_id = request.query_params.get('candidate_id')
         if not candidate_id:
             return Response({'detail': 'candidate_id required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -403,5 +390,10 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
             candidate_id=candidate_id,
             candidate__event=event,
         )
+        round_id = request.query_params.get('round_id')
+        if round_id is not None:
+            rounds, _ = judging_rounds(event)
+            selected_round = select_judging_round(rounds, round_id)
+            scores = scores.filter(criterion_id__in=selected_round['criteria_ids'])
         serializer = JudgeScoreSerializer(scores, many=True)
         return Response(serializer.data)

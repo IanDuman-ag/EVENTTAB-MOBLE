@@ -4,9 +4,9 @@ from rest_framework.response import Response
 from django.db import models, connection
 from django.db.utils import ProgrammingError
 from django.db.models import Sum, Q
-from decimal import Decimal
+from .judge_results import official_event_results
 
-from .models import Team, Match, Activity, EventCategory, JudgingEvent, Candidate, JudgeScore
+from .models import Team, Match, Activity, JudgingEvent
 from .serializers import (
     TeamSerializer, MatchSerializer, ActivitySerializer,
     EventCategorySerializer, JudgingEventSerializer, CandidateStandingSerializer,
@@ -213,45 +213,11 @@ class JudgingEventViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['get'])
     def standings(self, request, pk=None):
         """
-        Return candidates ranked by their total weighted score.
-        Each candidate's total = sum of (score * criterion.weight_percent / 100)
-        across all judges and criteria.
+        Return verified event standings using the saved result rules.
+        Multi-round results are withheld until the final round is complete.
         """
         event = self.get_object()
-        candidates = Candidate.objects.filter(event=event)
-
-        results = []
-        for candidate in candidates:
-            # Official standings: only tabulator-approved judge scores.
-            scores_qs = JudgeScore.objects.filter(
-                candidate=candidate,
-                approval_status="approved",
-            )
-            total = Decimal('0.00')
-            for js in scores_qs.select_related('criterion'):
-                total += js.score * js.criterion.weight_percent / Decimal('100')
-
-            pending_live = JudgeScore.objects.filter(
-                candidate=candidate,
-                approval_status="pending",
-                submitted_at__isnull=False,
-            ).exists()
-
-            results.append({
-                'candidate_id': candidate.id,
-                'name': candidate.name,
-                'number': candidate.number,
-                'total_score': total,
-                'is_live': pending_live,
-                'is_official': scores_qs.exists(),
-            })
-
-        # Public leaderboard shows official (approved) results only.
-        results = [r for r in results if r['is_official']]
-        results.sort(key=lambda x: x['total_score'], reverse=True)
-
-        for i, r in enumerate(results):
-            r['rank'] = i + 1
+        results = official_event_results(event)
 
         serializer = CandidateStandingSerializer(results, many=True)
         return Response(serializer.data)

@@ -80,7 +80,7 @@ def tabulator_review(request):
                     {"detail": "judge_id and candidate_id are required."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            result = review_judge_scores(int(judge_id), int(candidate_id), decision, note)
+            result = review_judge_scores(int(judge_id), int(candidate_id), decision, note, round_id=request.data.get("round_id"))
             return Response(result)
 
         return Response({"detail": "kind must be scorer or judge."}, status=status.HTTP_400_BAD_REQUEST)

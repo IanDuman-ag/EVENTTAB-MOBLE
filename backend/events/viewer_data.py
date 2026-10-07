@@ -6,6 +6,7 @@ from django.db import connection
 from django.db.models import Q
 from django.utils import timezone
 
+from .judge_results import official_event_results
 from .bracket_data import fetch_bracket_matches
 from .models import Activity, EventCategory, JudgingEvent, Match, Team
 from .serializers import MatchSerializer
@@ -505,7 +506,9 @@ def fetch_viewer_dashboard():
         mid = m.get("id")
         src = m.get("source") or ""
         if src == "judging" and (m.get("status") or "") == "completed":
-            official_results.append({**m, "result_type": "criteria"})
+            event = JudgingEvent.objects.filter(id=m.get("judging_event_id")).first()
+            if event is not None and official_event_results(event):
+                official_results.append({**m, "result_type": "criteria"})
         elif src == "bracket" and mid in approved_b:
             official_results.append({**m, "result_type": "match"})
         elif src in ("match", "legacy") and mid in approved_l:
@@ -997,8 +1000,7 @@ def fetch_viewer_criteria_event_detail(judging_event_id):
     except JudgingEvent.DoesNotExist:
         return None
 
-    from .models import Candidate, JudgeScore, JudgingStage
-    from decimal import Decimal
+    from .models import Candidate
 
     stages = list(event.stages.all().order_by("order", "id"))
     active = next((s for s in stages if s.is_active), stages[0] if stages else None)
@@ -1048,36 +1050,16 @@ def fetch_viewer_criteria_event_detail(judging_event_id):
     # Official published results (approved scores only)
     results = []
     show_scores = True
-    standings = []
-    for cand in Candidate.objects.filter(event=event).order_by("number"):
-        scores_qs = JudgeScore.objects.filter(
-            candidate=cand, approval_status="approved"
-        ).select_related("criterion")
-        if not scores_qs.exists():
-            continue
-        total = Decimal("0")
-        for js in scores_qs:
-            if js.criterion.max_score > 0:
-                total += js.score * js.criterion.weight_percent / js.criterion.max_score
-        standings.append(
-            {
-                "candidate_id": cand.id,
-                "name": cand.name,
-                "number": cand.number,
-                "department": cand.department or "",
-                "total_score": float(round(total, 1)),
-            }
-        )
-    standings.sort(key=lambda r: r["total_score"], reverse=True)
+    standings = official_event_results(event)
     award_titles = ["Champion", "First Runner-Up", "Second Runner-Up"]
     for i, row in enumerate(standings):
-        row["rank"] = i + 1
-        row["award"] = award_titles[i] if i < len(award_titles) else f"#{i + 1}"
+        rank = row["rank"]
+        row["award"] = award_titles[rank - 1] if rank <= len(award_titles) else f"#{rank}"
         if i < 3:
             contestants_map = {c["id"]: c for c in contestants}
             if row["candidate_id"] in contestants_map:
                 contestants_map[row["candidate_id"]]["status"] = (
-                    "Winner" if i == 0 else "Finalist"
+                    "Winner" if rank == 1 else "Finalist"
                 )
         results.append(
             {
@@ -1104,7 +1086,7 @@ def fetch_viewer_criteria_event_detail(judging_event_id):
         )
         if qualified:
             for c in contestants:
-                if c["id"] in qualified:
+                if c["id"] in qualified and c["status"] == "Competing":
                     c["status"] = "Qualified"
 
     awards = [

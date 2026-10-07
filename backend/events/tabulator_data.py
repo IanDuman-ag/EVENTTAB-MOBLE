@@ -1,22 +1,14 @@
-"""Tabulator review queue — pending scorer + judge submissions."""
+"""Tabulator review queue â€” pending scorer + judge submissions."""
 
 from collections import defaultdict
-from decimal import Decimal
 
-from django.db.models import Max
 from django.db import connection
 from django.utils import timezone
 
 from .bracket_data import fetch_bracket_match, update_bracket_match_score
 from .models import BracketScorerSubmission, JudgeScore, ScorerSubmission
-
-
-def _weighted_total(scores_qs):
-    total = Decimal("0")
-    for js in scores_qs:
-        if js.criterion.max_score > 0:
-            total += js.score * js.criterion.weight_percent / js.criterion.max_score
-    return float(round(total, 1))
+from .judge_rounds import judging_rounds, select_judging_round
+from .judge_results import round_score, round_maximum
 
 
 def fetch_pending_queue():
@@ -87,36 +79,33 @@ def fetch_pending_queue():
     for js in pending_scores:
         groups[(js.judge_id, js.candidate_id)].append(js)
 
+    round_cache = {}
     for (judge_id, candidate_id), scores in groups.items():
         sample = scores[0]
-        qs = JudgeScore.objects.filter(
-            judge_id=judge_id,
-            candidate_id=candidate_id,
-            approval_status="pending",
-        ).select_related("criterion")
-        items.append(
-            {
-                "id": f"judge-{judge_id}-{candidate_id}",
-                "kind": "judge",
-                "source": "criteria",
-                "judge_id": judge_id,
-                "candidate_id": candidate_id,
-                "judging_event_id": sample.candidate.event_id,
-                "title": sample.candidate.event.title,
-                "subtitle": f"#{sample.candidate.number} – {sample.candidate.name}",
-                "event_name": sample.candidate.event.title,
-                "venue": sample.candidate.event.venue or "",
-                "score_display": f"{_weighted_total(qs)} / 100",
-                "criteria_count": qs.count(),
+        event = sample.candidate.event
+        if event.id not in round_cache:
+            round_cache[event.id] = judging_rounds(event)
+        rounds, metadata = round_cache[event.id]
+        for round_data in rounds:
+            recorded = [score for score in scores if score.criterion_id in round_data["criteria_ids"]]
+            if not recorded:
+                continue
+            total = float(round(round_score(recorded, round_data, metadata), 2))
+            maximum = round_maximum(event.criteria.filter(id__in=round_data["criteria_ids"]), round_data, metadata)
+            submitted_at = max(score.submitted_at for score in recorded)
+            items.append({
+                "id": f"judge-{judge_id}-{candidate_id}-{round_data['id']}",
+                "kind": "judge", "source": "criteria", "result_scope": "round",
+                "round_id": round_data["id"], "current_round": round_data["name"],
+                "judge_id": judge_id, "candidate_id": candidate_id,
+                "judging_event_id": event.id, "title": event.title,
+                "subtitle": f"#{sample.candidate.number} ? {sample.candidate.name} ? {round_data['name']}",
+                "event_name": event.title, "venue": event.venue or "",
+                "score_display": f"{total} / {maximum}", "criteria_count": len(recorded),
                 "submitted_by": sample.judge.get_full_name() or sample.judge.username,
-                "submitted_at": (
-                    qs.aggregate(latest=Max("submitted_at"))["latest"].isoformat()
-                    if qs.aggregate(latest=Max("submitted_at"))["latest"]
-                    else None
-                ),
-                "status": "pending",
-            }
-        )
+                "submitted_at": submitted_at.isoformat(), "status": "pending",
+                "is_official": False,
+            })
 
     items.sort(key=lambda x: x.get("submitted_at") or "", reverse=True)
     return {
@@ -163,7 +152,7 @@ def review_scorer_bracket(submission_id, decision, note=""):
 def review_scorer_legacy(submission_id, decision, note=""):
     sub = ScorerSubmission.objects.select_related("match").get(pk=submission_id)
     if decision == "returned":
-        # Legacy model has no returned — map to pending unlock.
+        # Legacy model has no returned â€” map to pending unlock.
         sub.approval_status = "pending"
         if sub.match.status == "completed":
             sub.match.status = "live"
@@ -187,7 +176,7 @@ def review_scorer_legacy(submission_id, decision, note=""):
     }
 
 
-def review_judge_scores(judge_id, candidate_id, decision, note=""):
+def review_judge_scores(judge_id, candidate_id, decision, note="", round_id=None):
     """decision: approved | rejected"""
     if decision not in ("approved", "rejected"):
         raise ValueError("decision must be approved or rejected")
@@ -196,7 +185,14 @@ def review_judge_scores(judge_id, candidate_id, decision, note=""):
         judge_id=judge_id,
         candidate_id=candidate_id,
         submitted_at__isnull=False,
+        approval_status="pending",
     )
+    if round_id is not None:
+        sample = qs.select_related("candidate__event").first()
+        if sample is not None:
+            rounds, _ = judging_rounds(sample.candidate.event)
+            selected = select_judging_round(rounds, round_id)
+            qs = qs.filter(criterion_id__in=selected["criteria_ids"])
     if not qs.exists():
         raise JudgeScore.DoesNotExist("No submitted scores found.")
 

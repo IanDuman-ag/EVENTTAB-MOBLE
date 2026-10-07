@@ -93,6 +93,7 @@ class ScoreItemSerializer(serializers.Serializer):
 
 
 class SubmitScoresSerializer(serializers.Serializer):
+    round_id = serializers.CharField(required=False, allow_null=True)
     candidate_id = serializers.IntegerField()
     scores = ScoreItemSerializer(many=True)
     draft_step = serializers.IntegerField(required=False, default=0)
@@ -104,6 +105,7 @@ class SubmitScoresSerializer(serializers.Serializer):
 
 
 class SaveDraftSerializer(serializers.Serializer):
+    round_id = serializers.CharField(required=False, allow_null=True)
     candidate_id = serializers.IntegerField()
     scores = ScoreItemSerializer(many=True)
     draft_step = serializers.IntegerField(required=False, default=0)

@@ -85,7 +85,7 @@ def judge_assignment_detail(request, judging_event_id):
     if not _is_judge(request.user):
         return Response({"detail": "Judge access required."}, status=status.HTTP_403_FORBIDDEN)
 
-    detail = fetch_assignment_detail(request.user, judging_event_id)
+    detail = fetch_assignment_detail(request.user, judging_event_id, request.query_params.get("round_id"))
     if detail is None:
         return Response({"detail": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
     return Response(detail)

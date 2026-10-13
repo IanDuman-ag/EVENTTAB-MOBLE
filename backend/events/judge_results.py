@@ -48,6 +48,10 @@ def eligible_candidates(event, round_data, candidates=None):
             ids = {cid for cid, qualified in eligibility if qualified}
             return [candidate for candidate in candidates if candidate.id in ids]
     rules = round_data.get("rules", {})
+    # The opening portal round starts with the event roster. Qualification
+    # lists gate advancement into later rounds, not entry into the first.
+    if rules.get("portal_event_id") and round_data.get("order", 0) == 0:
+        return candidates
     qualified = rules.get("results", {}).get("qualified_participant_ids", {})
     selected = qualified.get(str(round_data.get("order", 0)))
     source_ids = rules.get("participant_ids", [])
